@@ -1,0 +1,83 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { hashPassword, signToken } from "@/lib/auth";
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { name, email, password, role, department, university, bio } = body;
+
+    if (!name || !email || !password || !role) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    if (!["professor", "student"].includes(role)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.toLowerCase()));
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "Email already registered" },
+        { status: 409 }
+      );
+    }
+
+    const hashed = await hashPassword(password);
+
+    const [user] = await db
+      .insert(users)
+      .values({
+        name,
+        email: email.toLowerCase(),
+        password: hashed,
+        role,
+        department: department || null,
+        university: university || null,
+        bio: bio || null,
+      })
+      .returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        department: users.department,
+        university: users.university,
+        bio: users.bio,
+        createdAt: users.createdAt,
+      });
+
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+    });
+
+    const response = NextResponse.json({ user, token }, { status: 201 });
+    response.cookies.set("auth_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Register error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
