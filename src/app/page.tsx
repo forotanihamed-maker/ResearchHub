@@ -49,7 +49,10 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/auth/login">
-              <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/10">
+              <Button
+                variant="ghost"
+                className="text-slate-300 hover:text-white hover:bg-white/10"
+              >
                 Sign in
               </Button>
             </Link>
@@ -65,15 +68,16 @@ export default function HomePage() {
             <FlaskConical size={14} />
             University Research Platform
           </div>
-          <h1 className="text-6xl font-bold text-white mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold text-white mb-6 leading-tight">
             Connect Research
             <span className="text-indigo-400"> Professors </span>
             with Talented
             <span className="text-purple-400"> Students</span>
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10">
-            ResearchHub bridges the gap between academic research and student ambition. 
-            Find projects that match your skills, collaborate in real-time, and advance science together.
+            ResearchHub bridges the gap between academic research and student
+            ambition. Find projects that match your skills, collaborate in
+            real-time, and advance science together.
           </p>
           <div className="flex items-center justify-center gap-4">
             <Link href="/auth/register">
@@ -126,7 +130,7 @@ export default function HomePage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-6 mt-12 border-t border-white/10 pt-12">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-12 border-t border-white/10 pt-12">
             {[
               { label: "Research Projects", value: "6+" },
               { label: "Active Researchers", value: "10+" },

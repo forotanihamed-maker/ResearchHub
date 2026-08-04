@@ -91,9 +91,11 @@ export default function ProfilePage() {
           <CardBody>
             <div className="flex items-center gap-5 mb-6">
               <Avatar name={user.name} size="xl" />
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">{user.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-bold text-slate-900 truncate">
+                  {user.name}
+                </h2>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   <Badge
                     className={
                       user.role === "professor"
@@ -104,8 +106,9 @@ export default function ProfilePage() {
                     <GraduationCap size={11} className="mr-1" />
                     {user.role === "professor" ? "Professor" : "Student"}
                   </Badge>
-                  <span className="text-sm text-slate-500 flex items-center gap-1">
-                    <Mail size={12} /> {user.email}
+                  <span className="text-sm text-slate-500 flex items-center gap-1 min-w-0">
+                    <Mail size={12} className="shrink-0" />
+                    <span className="truncate">{user.email}</span>
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
