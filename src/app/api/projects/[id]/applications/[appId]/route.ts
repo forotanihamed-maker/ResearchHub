@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { applications, projects, projectMembers } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string; appId: string }> };
@@ -54,38 +54,51 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
       }
 
-      await db
-        .update(applications)
-        .set({ status, updatedAt: new Date() })
-        .where(eq(applications.id, applicationId));
-
-      // If approved, add to project members and update project status
       if (status === "approved") {
-        // Check if already a member (idempotent)
-        const [existingMember] = await db
-          .select()
-          .from(projectMembers)
-          .where(
-            and(
-              eq(projectMembers.projectId, projectId),
-              eq(projectMembers.userId, app.studentId)
-            )
-          );
+        await db.transaction(async (tx) => {
+          await tx
+            .update(applications)
+            .set({
+              status: "approved",
+              updatedAt: new Date(),
+            })
+            .where(eq(applications.id, applicationId));
 
-        if (!existingMember) {
-          await db.insert(projectMembers).values({
-            projectId,
-            userId: app.studentId,
-          });
-        }
+          const [existingMember] = await tx
+            .select()
+            .from(projectMembers)
+            .where(
+              and(
+                eq(projectMembers.projectId, projectId),
+                eq(projectMembers.userId, app.studentId)
+              )
+            );
 
-        // Update project status to in_progress if it's still open
-        if (project.status === "open") {
-          await db
-            .update(projects)
-            .set({ status: "in_progress", updatedAt: new Date() })
-            .where(eq(projects.id, projectId));
-        }
+          if (!existingMember) {
+            await tx.insert(projectMembers).values({
+              projectId,
+              userId: app.studentId,
+            });
+          }
+
+          if (project.status === "open") {
+            await tx
+              .update(projects)
+              .set({
+                status: "in_progress",
+                updatedAt: new Date(),
+              })
+              .where(eq(projects.id, projectId));
+          }
+        });
+      } else {
+        await db
+          .update(applications)
+          .set({
+            status: "rejected",
+            updatedAt: new Date(),
+          })
+          .where(eq(applications.id, applicationId));
       }
 
       return NextResponse.json({ message: "Application updated" });
