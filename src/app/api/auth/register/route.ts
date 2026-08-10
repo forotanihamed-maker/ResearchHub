@@ -7,17 +7,15 @@ import { hashPassword, signToken } from "@/lib/auth";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, password, role, department, university, bio } = body;
+    const { name, email, password, department, university, bio } = body;
 
-    if (!name || !email || !password || !role) {
+    const role = "student";
+
+    if (!name || !email || !password) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
-    }
-
-    if (!["professor", "student"].includes(role)) {
-      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
     const [existing] = await db

@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  projects,
-  applications,
-  projectMembers,
-  users,
-} from "@/db/schema";
+import { projects, applications, projectMembers, users } from "@/db/schema";
 import { eq, and, sql, count } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
-
 export async function GET() {
   try {
     const authUser = await getAuthUser();
@@ -70,14 +64,19 @@ export async function GET() {
           .select({ count: sql<number>`count(*)::int` })
           .from(applications)
           .where(
-            sql`${applications.projectId} = ANY(${sql.raw(`ARRAY[${myProjectIds.join(",")}]::int[]`)})`)
+            sql`${applications.projectId} = ANY(${sql.raw(
+              `ARRAY[${myProjectIds.join(",")}]::int[]`
+            )})`
+          );
 
         const [pendingCount] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(applications)
           .where(
             and(
-              sql`${applications.projectId} = ANY(${sql.raw(`ARRAY[${myProjectIds.join(",")}]::int[]`)})`,
+              sql`${applications.projectId} = ANY(${sql.raw(
+                `ARRAY[${myProjectIds.join(",")}]::int[]`
+              )})`,
               eq(applications.status, "pending")
             )
           );
@@ -86,7 +85,9 @@ export async function GET() {
           .select({ count: sql<number>`count(*)::int` })
           .from(projectMembers)
           .where(
-            sql`${projectMembers.projectId} = ANY(${sql.raw(`ARRAY[${myProjectIds.join(",")}]::int[]`)})`
+            sql`${projectMembers.projectId} = ANY(${sql.raw(
+              `ARRAY[${myProjectIds.join(",")}]::int[]`
+            )})`
           );
 
         totalApplications = appCount?.count ?? 0;
