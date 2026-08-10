@@ -14,6 +14,31 @@ import { hashPassword } from "@/lib/auth";
 import { sql } from "drizzle-orm";
 
 // ============================================================
+// 🔒 Seed access guard
+// This route can wipe/reseed the entire database, so it must
+// never be reachable without a secret — in ANY environment.
+// If SEED_SECRET is not set, the route is disabled entirely.
+// Pass the secret via header `x-seed-secret` or `?secret=`.
+// ============================================================
+function assertSeedAccess(req: NextRequest): NextResponse | null {
+  const expected = process.env.SEED_SECRET;
+
+  if (!expected) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const provided =
+    req.headers.get("x-seed-secret") ??
+    new URL(req.url).searchParams.get("secret");
+
+  if (provided !== expected) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return null;
+}
+
+// ============================================================
 // 📌 نگاشت گرایش‌ها به مهارت‌های مرتبط
 // ============================================================
 const DEPARTMENT_SKILLS_MAP: Record<string, string[]> = {
@@ -254,6 +279,9 @@ const DEMO_PROJECTS = [
 // 🚀 GET: Reset and Seed Everything
 // ============================================================
 export async function GET(req: NextRequest) {
+  const denied = assertSeedAccess(req);
+  if (denied) return denied;
+
   try {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
@@ -505,6 +533,9 @@ export async function GET(req: NextRequest) {
 // 🧪 POST: Reset and Seed (یک‌جا)
 // ============================================================
 export async function POST(req: NextRequest) {
+  const denied = assertSeedAccess(req);
+  if (denied) return denied;
+
   try {
     // 1. پاک کردن همه داده‌ها
     await db.delete(chatMessages);

@@ -3,6 +3,11 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { comparePassword, signToken } from "@/lib/auth";
+import { checkRateLimit, resetRateLimit, getClientIp } from "@/lib/rateLimit";
+
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_ATTEMPTS_PER_EMAIL = 5;
+const MAX_ATTEMPTS_PER_IP = 20;
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,10 +21,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedEmail = email.toLowerCase();
+    const ip = getClientIp(req);
+    const emailKey = `login:email:${normalizedEmail}`;
+    const ipKey = `login:ip:${ip}`;
+
+    const ipCheck = checkRateLimit(ipKey, MAX_ATTEMPTS_PER_IP, WINDOW_MS);
+    const emailCheck = checkRateLimit(
+      emailKey,
+      MAX_ATTEMPTS_PER_EMAIL,
+      WINDOW_MS
+    );
+
+    if (!ipCheck.allowed || !emailCheck.allowed) {
+      const retryAfterSec = Math.ceil(
+        (Math.max(ipCheck.resetAt, emailCheck.resetAt) - Date.now()) / 1000
+      );
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+      );
+    }
+
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.email, email.toLowerCase()));
+      .where(eq(users.email, normalizedEmail));
 
     if (!user) {
       return NextResponse.json(
@@ -35,6 +62,10 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Successful login — clear the counters for this email/IP.
+    resetRateLimit(emailKey);
+    resetRateLimit(ipKey);
 
     const token = signToken({
       userId: user.id,

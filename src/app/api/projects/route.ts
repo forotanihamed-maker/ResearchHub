@@ -10,6 +10,17 @@ import {
 } from "@/db/schema";
 import { eq, inArray, desc, and, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import {
+  sanitizeTitle,
+  sanitizeDescription,
+  parseMaxMembers,
+  parseDeadline,
+  validateSkillIds,
+  TITLE_MIN,
+  TITLE_MAX,
+  DESCRIPTION_MIN,
+  DESCRIPTION_MAX,
+} from "@/lib/validation";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,16 +46,12 @@ export async function GET(req: NextRequest) {
       const validStatuses = ["open", "in_progress", "completed"];
       if (validStatuses.includes(status)) {
         conditions.push(
-          eq(
-            projects.status,
-            status as "open" | "in_progress" | "completed"
-          )
+          eq(projects.status, status as "open" | "in_progress" | "completed")
         );
       }
     }
 
-    const whereClause =
-      conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const allProjects = await db
       .select({
@@ -69,7 +76,11 @@ export async function GET(req: NextRequest) {
     // Get skills for each project
     const projectIds = allProjects.map((p) => p.id);
 
-    let projectSkillsData: { projectId: number; skillId: number; skillName: string }[] = [];
+    let projectSkillsData: {
+      projectId: number;
+      skillId: number;
+      skillName: string;
+    }[] = [];
     if (projectIds.length > 0) {
       projectSkillsData = await db
         .select({
@@ -173,9 +184,50 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { title, description, maxMembers, deadline, skillIds } = body;
 
-    if (!title || !description) {
+    const cleanTitle = sanitizeTitle(title);
+    if (cleanTitle === null) {
       return NextResponse.json(
-        { error: "Title and description are required" },
+        {
+          error: `Title must be between ${TITLE_MIN} and ${TITLE_MAX} characters`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const cleanDescription = sanitizeDescription(description);
+    if (cleanDescription === null) {
+      return NextResponse.json(
+        {
+          error: `Description must be between ${DESCRIPTION_MIN} and ${DESCRIPTION_MAX} characters`,
+        },
+        { status: 400 }
+      );
+    }
+
+    let cleanMaxMembers = 5;
+    if (maxMembers !== undefined) {
+      const m = parseMaxMembers(maxMembers);
+      if (m === null) {
+        return NextResponse.json(
+          { error: "maxMembers must be a positive integer" },
+          { status: 400 }
+        );
+      }
+      cleanMaxMembers = m;
+    }
+
+    const deadlineResult = parseDeadline(deadline);
+    if (!deadlineResult.ok) {
+      return NextResponse.json(
+        { error: "Invalid deadline date" },
+        { status: 400 }
+      );
+    }
+
+    const cleanSkillIds = await validateSkillIds(skillIds);
+    if (cleanSkillIds === null) {
+      return NextResponse.json(
+        { error: "One or more skillIds are invalid" },
         { status: 400 }
       );
     }
@@ -183,11 +235,11 @@ export async function POST(req: NextRequest) {
     const [project] = await db
       .insert(projects)
       .values({
-        title,
-        description,
+        title: cleanTitle,
+        description: cleanDescription,
         professorId: authUser.userId,
-        maxMembers: maxMembers || 5,
-        deadline: deadline ? new Date(deadline) : null,
+        maxMembers: cleanMaxMembers,
+        deadline: deadlineResult.value,
         status: "open",
       })
       .returning();
@@ -198,9 +250,9 @@ export async function POST(req: NextRequest) {
       userId: authUser.userId,
     });
 
-    if (skillIds && skillIds.length > 0) {
+    if (cleanSkillIds.length > 0) {
       await db.insert(projectSkills).values(
-        skillIds.map((sid: number) => ({
+        cleanSkillIds.map((sid) => ({
           projectId: project.id,
           skillId: sid,
         }))

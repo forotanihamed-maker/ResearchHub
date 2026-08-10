@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { chatMessages, projectMembers, users } from "@/db/schema";
+import { chatMessages, projectMembers, users, projects } from "@/db/schema";
 import { eq, asc, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 
@@ -14,11 +14,30 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     const { id } = await params;
-    const projectId = parseInt(id);
+    const projectId = Number(id);
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return NextResponse.json(
+        { error: "Invalid project ID" },
+        { status: 400 }
+      );
+    }
 
     // Only members can see messages
+    // Check whether the user is the professor who owns the project
+    const [ownedProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, projectId),
+          eq(projects.professorId, authUser.userId)
+        )
+      );
+
+    // Check whether the user is a project member
     const [isMember] = await db
-      .select()
+      .select({ projectId: projectMembers.projectId })
       .from(projectMembers)
       .where(
         and(
@@ -27,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         )
       );
 
-    if (!isMember) {
+    if (!ownedProject && !isMember) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -66,13 +85,28 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const { id } = await params;
-    const projectId = parseInt(id);
-    const body = await req.json();
-    const { content } = body;
+    const projectId = Number(id);
 
-    if (!content || !content.trim()) {
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return NextResponse.json(
+        { error: "Invalid project ID" },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json();
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+
+    if (!content) {
       return NextResponse.json(
         { error: "Message content required" },
+        { status: 400 }
+      );
+    }
+
+    if (content.length > 2000) {
+      return NextResponse.json(
+        { error: "Message is too long" },
         { status: 400 }
       );
     }

@@ -14,8 +14,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const { id, appId } = await params;
-    const projectId = parseInt(id);
-    const applicationId = parseInt(appId);
+    const projectId = Number(id);
+    const applicationId = Number(appId);
+
+    if (
+      !Number.isInteger(projectId) ||
+      projectId <= 0 ||
+      !Number.isInteger(applicationId) ||
+      applicationId <= 0
+    ) {
+      return NextResponse.json(
+        { error: "Invalid project or application ID" },
+        { status: 400 }
+      );
+    }
     const body = await req.json();
     const { status } = body;
 
@@ -53,9 +65,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           { status: 400 }
         );
       }
+      if (app.status !== "pending") {
+        return NextResponse.json(
+          { error: "Only pending applications can be updated" },
+          { status: 409 }
+        );
+      }
 
       if (status === "approved") {
         await db.transaction(async (tx) => {
+          const members = await tx
+            .select({
+              userId: projectMembers.userId,
+            })
+            .from(projectMembers)
+            .where(eq(projectMembers.projectId, projectId));
+
+          const alreadyMember = members.some(
+            (member) => member.userId === app.studentId
+          );
+
+          if (!alreadyMember && members.length >= project.maxMembers) {
+            throw new Error("PROJECT_FULL");
+          }
           await tx
             .update(applications)
             .set({
@@ -130,6 +162,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   } catch (error) {
+    if (error instanceof Error && error.message === "PROJECT_FULL") {
+      return NextResponse.json({ error: "Project is full" }, { status: 409 });
+    }
     console.error("Application PATCH error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

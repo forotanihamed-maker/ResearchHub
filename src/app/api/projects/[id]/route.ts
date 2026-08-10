@@ -10,6 +10,19 @@ import {
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import {
+  parseId,
+  isValidProjectStatus,
+  sanitizeTitle,
+  sanitizeDescription,
+  parseMaxMembers,
+  parseDeadline,
+  validateSkillIds,
+  TITLE_MIN,
+  TITLE_MAX,
+  DESCRIPTION_MIN,
+  DESCRIPTION_MAX,
+} from "@/lib/validation";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -21,7 +34,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     const { id } = await params;
-    const projectId = parseInt(id);
+    const projectId = parseId(id);
+    if (projectId === null) {
+      return NextResponse.json(
+        { error: "Invalid project ID" },
+        { status: 400 }
+      );
+    }
 
     const [project] = await db
       .select({
@@ -113,7 +132,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const { id } = await params;
-    const projectId = parseInt(id);
+    const projectId = parseId(id);
+    if (projectId === null) {
+      return NextResponse.json(
+        { error: "Invalid project ID" },
+        { status: 400 }
+      );
+    }
 
     const [existing] = await db
       .select()
@@ -132,25 +157,115 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json();
     const { title, description, status, maxMembers, deadline, skillIds } = body;
 
+    // ---- Validate each field only if it was actually provided ----
+
+    let cleanTitle: string | undefined;
+    if (title !== undefined) {
+      const t = sanitizeTitle(title);
+      if (t === null) {
+        return NextResponse.json(
+          {
+            error: `Title must be between ${TITLE_MIN} and ${TITLE_MAX} characters`,
+          },
+          { status: 400 }
+        );
+      }
+      cleanTitle = t;
+    }
+
+    let cleanDescription: string | undefined;
+    if (description !== undefined) {
+      const d = sanitizeDescription(description);
+      if (d === null) {
+        return NextResponse.json(
+          {
+            error: `Description must be between ${DESCRIPTION_MIN} and ${DESCRIPTION_MAX} characters`,
+          },
+          { status: 400 }
+        );
+      }
+      cleanDescription = d;
+    }
+
+    let cleanStatus: typeof status | undefined;
+    if (status !== undefined) {
+      if (!isValidProjectStatus(status)) {
+        return NextResponse.json(
+          { error: "Invalid status value" },
+          { status: 400 }
+        );
+      }
+      cleanStatus = status;
+    }
+
+    let cleanMaxMembers: number | undefined;
+    if (maxMembers !== undefined) {
+      const m = parseMaxMembers(maxMembers);
+      if (m === null) {
+        return NextResponse.json(
+          { error: "maxMembers must be a positive integer" },
+          { status: 400 }
+        );
+      }
+      const [{ count: currentMemberCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projectMembers)
+        .where(eq(projectMembers.projectId, projectId));
+
+      if (m < currentMemberCount) {
+        return NextResponse.json(
+          {
+            error: `maxMembers cannot be less than the current member count (${currentMemberCount})`,
+          },
+          { status: 409 }
+        );
+      }
+      cleanMaxMembers = m;
+    }
+
+    let cleanDeadline: Date | null | undefined;
+    if (deadline !== undefined) {
+      const parsed = parseDeadline(deadline);
+      if (!parsed.ok) {
+        return NextResponse.json(
+          { error: "Invalid deadline date" },
+          { status: 400 }
+        );
+      }
+      cleanDeadline = parsed.value;
+    }
+
+    let cleanSkillIds: number[] | undefined;
+    if (skillIds !== undefined) {
+      const validated = await validateSkillIds(skillIds);
+      if (validated === null) {
+        return NextResponse.json(
+          { error: "One or more skillIds are invalid" },
+          { status: 400 }
+        );
+      }
+      cleanSkillIds = validated;
+    }
+
     await db
       .update(projects)
       .set({
-        title: title || undefined,
-        description: description || undefined,
-        status: status || undefined,
-        maxMembers: maxMembers || undefined,
-        deadline: deadline !== undefined ? (deadline ? new Date(deadline) : null) : undefined,
+        title: cleanTitle,
+        description: cleanDescription,
+        status: cleanStatus,
+        maxMembers: cleanMaxMembers,
+        deadline: cleanDeadline,
         updatedAt: new Date(),
       })
       .where(eq(projects.id, projectId));
 
-    if (skillIds !== undefined) {
+    if (cleanSkillIds !== undefined) {
       await db
         .delete(projectSkills)
         .where(eq(projectSkills.projectId, projectId));
-      if (skillIds.length > 0) {
+      if (cleanSkillIds.length > 0) {
         await db.insert(projectSkills).values(
-          skillIds.map((sid: number) => ({
+          cleanSkillIds.map((sid) => ({
             projectId,
             skillId: sid,
           }))
@@ -176,7 +291,13 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }
 
     const { id } = await params;
-    const projectId = parseInt(id);
+    const projectId = parseId(id);
+    if (projectId === null) {
+      return NextResponse.json(
+        { error: "Invalid project ID" },
+        { status: 400 }
+      );
+    }
 
     const [existing] = await db
       .select()
