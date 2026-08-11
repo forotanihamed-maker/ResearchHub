@@ -84,6 +84,89 @@ export function parseDeadline(value: unknown): DeadlineResult {
   return { ok: true, value: date };
 }
 
+// ============================================================
+// User / auth validation
+// ============================================================
+
+export const DEPARTMENTS = [
+  "مهندسی نرم‌افزار",
+  "هوش مصنوعی",
+  "شبکه‌های کامپیوتری",
+  "معماری سیستم‌های کامپیوتری",
+  "امنیت اطلاعات",
+  "علوم داده",
+] as const;
+export type Department = typeof DEPARTMENTS[number];
+
+export function isValidDepartment(value: unknown): value is Department {
+  return (
+    typeof value === "string" &&
+    (DEPARTMENTS as readonly string[]).includes(value)
+  );
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_MAX = 255;
+
+/**
+ * Trims, lowercases and validates an email address's basic shape.
+ * Returns the cleaned email, or null if invalid.
+ */
+export function sanitizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed.length === 0 || trimmed.length > EMAIL_MAX) return null;
+  if (!EMAIL_REGEX.test(trimmed)) return null;
+  return trimmed;
+}
+
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 72; // bcrypt silently truncates beyond this
+
+export function isValidPassword(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length >= PASSWORD_MIN &&
+    value.length <= PASSWORD_MAX
+  );
+}
+
+export const NAME_MIN = 2;
+export const NAME_MAX = 100;
+
+export function sanitizeName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length < NAME_MIN || trimmed.length > NAME_MAX) return null;
+  return trimmed;
+}
+
+export type OptionalTextResult =
+  | { ok: true; value: string | null }
+  | { ok: false };
+
+/**
+ * Validates an optional free-text field (e.g. university, bio).
+ * - undefined / null / "" / " " (whitespace only) -> no value / clear the field
+ * - otherwise                                       -> trimmed string, must not exceed maxLen
+ *
+ * Note: for PATCH-style endpoints where "not provided" must be
+ * distinguished from "explicitly cleared" so untouched fields are left
+ * alone, check `value !== undefined` before calling this function.
+ */
+export function parseOptionalText(
+  value: unknown,
+  maxLen: number
+): OptionalTextResult {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true, value: null };
+  }
+  if (typeof value !== "string") return { ok: false };
+  const trimmed = value.trim();
+  if (trimmed.length > maxLen) return { ok: false };
+  return { ok: true, value: trimmed.length === 0 ? null : trimmed };
+}
+
 /**
  * Validates that skillIds is an array of positive integers and that
  * every one of them actually exists in the skills table.

@@ -3,6 +3,13 @@ import { db } from "@/db";
 import { users, userSkills, skills } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import {
+  sanitizeName,
+  isValidDepartment,
+  parseOptionalText,
+  validateSkillIds,
+  type Department,
+} from "@/lib/validation";
 
 export async function GET() {
   try {
@@ -57,23 +64,79 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { name, bio, department, university, skillIds } = body;
 
+    let cleanName: string | undefined;
+    if (name !== undefined) {
+      const n = sanitizeName(name);
+      if (!n) {
+        return NextResponse.json(
+          { error: "Name must be between 2 and 100 characters" },
+          { status: 400 }
+        );
+      }
+      cleanName = n;
+    }
+
+    let cleanDepartment: Department | undefined;
+    if (department !== undefined) {
+      if (!isValidDepartment(department)) {
+        return NextResponse.json(
+          { error: "Please select a valid department" },
+          { status: 400 }
+        );
+      }
+      cleanDepartment = department;
+    }
+
+    let cleanBio: string | null | undefined;
+    if (bio !== undefined) {
+      const result = parseOptionalText(bio, 1000);
+      if (!result.ok) {
+        return NextResponse.json({ error: "Bio is too long" }, { status: 400 });
+      }
+      cleanBio = result.value;
+    }
+
+    let cleanUniversity: string | null | undefined;
+    if (university !== undefined) {
+      const result = parseOptionalText(university, 255);
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: "University name is too long" },
+          { status: 400 }
+        );
+      }
+      cleanUniversity = result.value;
+    }
+
+    let cleanSkillIds: number[] | undefined;
+    if (skillIds !== undefined) {
+      const validated = await validateSkillIds(skillIds);
+      if (validated === null) {
+        return NextResponse.json(
+          { error: "One or more skillIds are invalid" },
+          { status: 400 }
+        );
+      }
+      cleanSkillIds = validated;
+    }
+
     await db
       .update(users)
       .set({
-        name: name || undefined,
-        bio: bio !== undefined ? bio : undefined,
-        department: department !== undefined ? department : undefined,
-        university: university !== undefined ? university : undefined,
+        name: cleanName,
+        bio: cleanBio,
+        department: cleanDepartment,
+        university: cleanUniversity,
         updatedAt: new Date(),
       })
       .where(eq(users.id, authUser.userId));
 
     // Update skills if provided
-    if (skillIds !== undefined) {
+    if (cleanSkillIds !== undefined) {
       await db.delete(userSkills).where(eq(userSkills.userId, authUser.userId));
-      if (skillIds.length > 0) {
+      if (cleanSkillIds.length > 0) {
         await db.insert(userSkills).values(
-          skillIds.map((skillId: number) => ({
+          cleanSkillIds.map((skillId) => ({
             userId: authUser.userId,
             skillId,
           }))

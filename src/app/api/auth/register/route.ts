@@ -3,6 +3,14 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword, signToken } from "@/lib/auth";
+import {
+  sanitizeName,
+  sanitizeEmail,
+  isValidPassword,
+  isValidDepartment,
+  parseOptionalText,
+  PASSWORD_MIN,
+} from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,17 +19,53 @@ export async function POST(req: NextRequest) {
 
     const role = "student";
 
-    if (!name || !email || !password) {
+    const cleanName = sanitizeName(name);
+    if (!cleanName) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Name must be between 2 and 100 characters" },
         { status: 400 }
       );
+    }
+
+    const cleanEmail = sanitizeEmail(email);
+    if (!cleanEmail) {
+      return NextResponse.json(
+        { error: "Please provide a valid email address" },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidPassword(password)) {
+      return NextResponse.json(
+        { error: `Password must be at least ${PASSWORD_MIN} characters` },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidDepartment(department)) {
+      return NextResponse.json(
+        { error: "Please select a valid department" },
+        { status: 400 }
+      );
+    }
+
+    const universityResult = parseOptionalText(university, 255);
+    if (!universityResult.ok) {
+      return NextResponse.json(
+        { error: "University name is too long" },
+        { status: 400 }
+      );
+    }
+
+    const bioResult = parseOptionalText(bio, 1000);
+    if (!bioResult.ok) {
+      return NextResponse.json({ error: "Bio is too long" }, { status: 400 });
     }
 
     const [existing] = await db
       .select()
       .from(users)
-      .where(eq(users.email, email.toLowerCase()));
+      .where(eq(users.email, cleanEmail));
 
     if (existing) {
       return NextResponse.json(
@@ -35,13 +79,13 @@ export async function POST(req: NextRequest) {
     const [user] = await db
       .insert(users)
       .values({
-        name,
-        email: email.toLowerCase(),
+        name: cleanName,
+        email: cleanEmail,
         password: hashed,
         role,
-        department: department || null,
-        university: university || null,
-        bio: bio || null,
+        department,
+        university: universityResult.value,
+        bio: bioResult.value,
       })
       .returning({
         id: users.id,

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
     const ip = getClientIp(req);
     const emailKey = `login:email:${normalizedEmail}`;
     const ipKey = `login:ip:${ip}`;
