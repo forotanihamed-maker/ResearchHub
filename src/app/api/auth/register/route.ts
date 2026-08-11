@@ -11,6 +11,7 @@ import {
   parseOptionalText,
   PASSWORD_MIN,
 } from "@/lib/validation";
+import { auditLog } from "@/lib/auditLog";
 
 export async function POST(req: NextRequest) {
   try {
@@ -104,6 +105,8 @@ export async function POST(req: NextRequest) {
       role: user.role,
       name: user.name,
     });
+
+    auditLog("register_success", { userId: user.id, email: user.email });
 
     const response = NextResponse.json({ user, token }, { status: 201 });
     response.cookies.set("auth_token", token, {

@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { auditLog } from "@/lib/auditLog";
 import {
   parseId,
   isValidProjectStatus,
@@ -314,6 +315,12 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }
 
     await db.delete(projects).where(eq(projects.id, projectId));
+
+    auditLog("project_deleted", {
+      projectId,
+      professorId: authUser.userId,
+      title: existing.title,
+    });
 
     return NextResponse.json({ message: "Deleted successfully" });
   } catch (error) {

@@ -12,6 +12,8 @@ import {
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth";
 import { sql } from "drizzle-orm";
+import { auditLog } from "@/lib/auditLog";
+import { getClientIp } from "@/lib/rateLimit";
 
 // ============================================================
 // 🔒 Seed access guard
@@ -22,8 +24,10 @@ import { sql } from "drizzle-orm";
 // ============================================================
 function assertSeedAccess(req: NextRequest): NextResponse | null {
   const expected = process.env.SEED_SECRET;
+  const ip = getClientIp(req);
 
   if (!expected) {
+    auditLog("seed_denied", { ip, reason: "no_secret_configured" });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -32,9 +36,11 @@ function assertSeedAccess(req: NextRequest): NextResponse | null {
     new URL(req.url).searchParams.get("secret");
 
   if (provided !== expected) {
+    auditLog("seed_denied", { ip, reason: "bad_secret" });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  auditLog("seed_executed", { ip, method: req.method });
   return null;
 }
 

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { applications, projects, projectMembers } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { auditLog } from "@/lib/auditLog";
 
 type Params = { params: Promise<{ id: string; appId: string }> };
 
@@ -123,6 +124,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               .where(eq(projects.id, projectId));
           }
         });
+        auditLog("application_approved", {
+          applicationId,
+          projectId,
+          studentId: app.studentId,
+          professorId: authUser.userId,
+        });
       } else {
         await db
           .update(applications)
@@ -131,6 +138,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             updatedAt: new Date(),
           })
           .where(eq(applications.id, applicationId));
+
+        auditLog("application_rejected", {
+          applicationId,
+          projectId,
+          studentId: app.studentId,
+          professorId: authUser.userId,
+        });
       }
 
       return NextResponse.json({ message: "Application updated" });

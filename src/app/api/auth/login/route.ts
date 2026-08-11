@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     const valid = await comparePassword(password, user.password);
+
     if (!valid) {
       return NextResponse.json(
         { error: "Invalid email or password" },
