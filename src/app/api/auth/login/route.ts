@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { comparePassword, signToken } from "@/lib/auth";
 import { checkRateLimit, resetRateLimit, getClientIp } from "@/lib/rateLimit";
+import { auditLog } from "@/lib/auditLog";
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_ATTEMPTS_PER_EMAIL = 5;
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
       const retryAfterSec = Math.ceil(
         (Math.max(ipCheck.resetAt, emailCheck.resetAt) - Date.now()) / 1000
       );
+      auditLog("login_rate_limited", { email: normalizedEmail, ip });
       return NextResponse.json(
         { error: "Too many login attempts. Please try again later." },
         { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
@@ -49,6 +51,11 @@ export async function POST(req: NextRequest) {
       .where(eq(users.email, normalizedEmail));
 
     if (!user) {
+      auditLog("login_failed", {
+        email: normalizedEmail,
+        ip,
+        reason: "no_such_user",
+      });
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -58,6 +65,12 @@ export async function POST(req: NextRequest) {
     const valid = await comparePassword(password, user.password);
 
     if (!valid) {
+      auditLog("login_failed", {
+        email: normalizedEmail,
+        ip,
+        reason: "bad_password",
+        userId: user.id,
+      });
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -67,6 +80,7 @@ export async function POST(req: NextRequest) {
     // Successful login — clear the counters for this email/IP.
     resetRateLimit(emailKey);
     resetRateLimit(ipKey);
+    auditLog("login_success", { userId: user.id, email: user.email, ip });
 
     const token = signToken({
       userId: user.id,
