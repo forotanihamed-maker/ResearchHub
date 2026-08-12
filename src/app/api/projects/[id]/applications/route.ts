@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  applications,
-  projects,
-  users,
-  projectMembers,
-  userSkills,
-  skills,
-} from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { applications, projects, users, projectMembers } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string }> };
@@ -68,54 +61,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
         studentAvatar: users.avatar,
         studentDepartment: users.department,
         studentUniversity: users.university,
+        studentInterests: users.interests,
+        studentProgrammingLanguages: users.programmingLanguages,
       })
       .from(applications)
       .innerJoin(users, eq(applications.studentId, users.id))
       .where(eq(applications.projectId, projectId))
       .orderBy(applications.createdAt);
 
-    // No applications
-    if (apps.length === 0) {
-      return NextResponse.json({
-        applications: [],
-      });
-    }
-
-    // Get all student IDs
-    const studentIds = apps.map((app) => app.studentId);
-
-    // Get all skills in one query instead of one query per student
-    const skillRows = await db
-      .select({
-        userId: userSkills.userId,
-        id: skills.id,
-        name: skills.name,
-      })
-      .from(userSkills)
-      .innerJoin(skills, eq(userSkills.skillId, skills.id))
-      .where(inArray(userSkills.userId, studentIds));
-
-    // Group skills by student
-    const skillsByUser = new Map<number, { id: number; name: string }[]>();
-
-    for (const skill of skillRows) {
-      const current = skillsByUser.get(skill.userId) ?? [];
-
-      current.push({
-        id: skill.id,
-        name: skill.name,
-      });
-
-      skillsByUser.set(skill.userId, current);
-    }
-
-    const result = apps.map((app) => ({
-      ...app,
-      studentSkills: skillsByUser.get(app.studentId) ?? [],
-    }));
-
     return NextResponse.json({
-      applications: result,
+      applications: apps,
     });
   } catch (error) {
     console.error("Applications GET error:", error);

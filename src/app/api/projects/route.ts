@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  projects,
-  projectSkills,
-  skills,
-  users,
-  applications,
-  projectMembers,
-} from "@/db/schema";
+import { projects, users, applications, projectMembers } from "@/db/schema";
 import { eq, inArray, desc, and, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import {
@@ -15,7 +8,6 @@ import {
   sanitizeDescription,
   parseMaxMembers,
   parseDeadline,
-  validateSkillIds,
   TITLE_MIN,
   TITLE_MAX,
   DESCRIPTION_MIN,
@@ -31,7 +23,6 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
-    const skillFilter = searchParams.get("skills");
     const search = searchParams.get("search");
     const myProjects = searchParams.get("my");
 
@@ -73,25 +64,7 @@ export async function GET(req: NextRequest) {
       .where(whereClause)
       .orderBy(desc(projects.createdAt));
 
-    // Get skills for each project
     const projectIds = allProjects.map((p) => p.id);
-
-    let projectSkillsData: {
-      projectId: number;
-      skillId: number;
-      skillName: string;
-    }[] = [];
-    if (projectIds.length > 0) {
-      projectSkillsData = await db
-        .select({
-          projectId: projectSkills.projectId,
-          skillId: skills.id,
-          skillName: skills.name,
-        })
-        .from(projectSkills)
-        .innerJoin(skills, eq(projectSkills.skillId, skills.id))
-        .where(inArray(projectSkills.projectId, projectIds));
-    }
 
     // Get member counts
     let memberCounts: { projectId: number; count: number }[] = [];
@@ -126,32 +99,18 @@ export async function GET(req: NextRequest) {
       appCounts = rawAppCounts;
     }
 
-    // Assemble projects with skills
+    // Assemble projects
     let result = allProjects.map((p) => {
-      const pSkills = projectSkillsData
-        .filter((ps) => ps.projectId === p.id)
-        .map((ps) => ({ id: ps.skillId, name: ps.skillName }));
       const memberCount =
         memberCounts.find((mc) => mc.projectId === p.id)?.count ?? 0;
       const pendingApps =
         appCounts.find((ac) => ac.projectId === p.id)?.count ?? 0;
       return {
         ...p,
-        skills: pSkills,
         memberCount,
         pendingApplications: pendingApps,
       };
     });
-
-    // Filter by skill if requested
-    if (skillFilter) {
-      const skillIds = skillFilter.split(",").map(Number).filter(Boolean);
-      if (skillIds.length > 0) {
-        result = result.filter((p) =>
-          skillIds.some((sid) => p.skills.some((s) => s.id === sid))
-        );
-      }
-    }
 
     // Filter by search
     if (search) {
@@ -182,7 +141,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, description, maxMembers, deadline, skillIds } = body;
+    const { title, description, maxMembers, deadline } = body;
 
     const cleanTitle = sanitizeTitle(title);
     if (cleanTitle === null) {
@@ -224,14 +183,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cleanSkillIds = await validateSkillIds(skillIds);
-    if (cleanSkillIds === null) {
-      return NextResponse.json(
-        { error: "One or more skillIds are invalid" },
-        { status: 400 }
-      );
-    }
-
     const [project] = await db
       .insert(projects)
       .values({
@@ -249,15 +200,6 @@ export async function POST(req: NextRequest) {
       projectId: project.id,
       userId: authUser.userId,
     });
-
-    if (cleanSkillIds.length > 0) {
-      await db.insert(projectSkills).values(
-        cleanSkillIds.map((sid) => ({
-          projectId: project.id,
-          skillId: sid,
-        }))
-      );
-    }
 
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {

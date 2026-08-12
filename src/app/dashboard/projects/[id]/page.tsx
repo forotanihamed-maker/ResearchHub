@@ -10,7 +10,12 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Input";
 import { Card, CardBody } from "@/components/ui/Card";
-import { statusColor, statusLabel, formatDate, formatTimeAgo } from "@/lib/utils";
+import {
+  statusColor,
+  statusLabel,
+  formatDate,
+  formatTimeAgo,
+} from "@/lib/utils";
 import {
   Users,
   Calendar,
@@ -38,7 +43,6 @@ interface ProjectDetail {
   professorDepartment?: string | null;
   professorUniversity?: string | null;
   professorAvatar?: string | null;
-  skills: { id: number; name: string }[];
   members: {
     id: number;
     name: string;
@@ -71,7 +75,9 @@ export default function ProjectDetailPage({
   const queryClient = useQueryClient();
   const [applyModal, setApplyModal] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
-  const [activeTab, setActiveTab] = useState<"details" | "chat" | "applications">("details");
+  const [activeTab, setActiveTab] = useState<
+    "details" | "chat" | "applications"
+  >("details");
 
   const { data, isLoading } = useQuery({
     queryKey: ["project", id],
@@ -164,7 +170,9 @@ export default function ProjectDetailPage({
   const tabs = [
     { key: "details" as const, label: "Details" },
     ...(project.isMember ? [{ key: "chat" as const, label: "Team Chat" }] : []),
-    ...(isOwner ? [{ key: "applications" as const, label: "Applications" }] : []),
+    ...(isOwner
+      ? [{ key: "applications" as const, label: "Applications" }]
+      : []),
   ];
 
   return (
@@ -205,7 +213,9 @@ export default function ProjectDetailPage({
             <div className="lg:col-span-2 space-y-5">
               {/* Status + Actions */}
               <div className="flex items-center gap-3 flex-wrap">
-                <Badge className={`${statusColor(project.status)} text-sm px-3 py-1`}>
+                <Badge
+                  className={`${statusColor(project.status)} text-sm px-3 py-1`}
+                >
                   {statusLabel(project.status)}
                 </Badge>
                 {canApply && (
@@ -257,28 +267,6 @@ export default function ProjectDetailPage({
                 </CardBody>
               </Card>
 
-              {/* Skills Required */}
-              <Card>
-                <CardBody>
-                  <h3 className="font-semibold text-slate-900 mb-3">
-                    Required Skills
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {project.skills.map((skill) => (
-                      <span
-                        key={skill.id}
-                        className="px-3 py-1 rounded-full text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-100"
-                      >
-                        {skill.name}
-                      </span>
-                    ))}
-                    {project.skills.length === 0 && (
-                      <p className="text-sm text-slate-500">No specific skills listed</p>
-                    )}
-                  </div>
-                </CardBody>
-              </Card>
-
               {/* Team Members */}
               <Card>
                 <CardBody>
@@ -291,7 +279,11 @@ export default function ProjectDetailPage({
                         key={member.id}
                         className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg"
                       >
-                        <Avatar name={member.name} src={member.avatar} size="sm" />
+                        <Avatar
+                          name={member.name}
+                          src={member.avatar}
+                          size="sm"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-900">
                             {member.name}

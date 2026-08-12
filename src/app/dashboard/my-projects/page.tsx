@@ -20,7 +20,6 @@ interface Project {
   professorName: string;
   professorDepartment?: string | null;
   professorUniversity?: string | null;
-  skills: { id: number; name: string }[];
   memberCount: number;
   maxMembers: number;
   deadline?: string | null;

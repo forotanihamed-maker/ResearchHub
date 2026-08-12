@@ -9,6 +9,8 @@ import {
   isValidPassword,
   isValidDepartment,
   parseOptionalText,
+  validateInterests,
+  validateProgrammingLanguages,
   PASSWORD_MIN,
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
@@ -16,7 +18,16 @@ import { auditLog } from "@/lib/auditLog";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, password, department, university, bio } = body;
+    const {
+      name,
+      email,
+      password,
+      department,
+      university,
+      bio,
+      interests,
+      programmingLanguages,
+    } = body;
 
     const role = "student";
 
@@ -63,6 +74,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bio is too long" }, { status: 400 });
     }
 
+    const cleanInterests = validateInterests(interests ?? []);
+    if (cleanInterests === null) {
+      return NextResponse.json(
+        { error: "Interests must be a list of short, valid labels" },
+        { status: 400 }
+      );
+    }
+
+    const cleanLanguages = validateProgrammingLanguages(
+      programmingLanguages ?? []
+    );
+    if (cleanLanguages === null) {
+      return NextResponse.json(
+        { error: "One or more programming languages are invalid" },
+        { status: 400 }
+      );
+    }
+
     const [existing] = await db
       .select()
       .from(users)
@@ -87,6 +116,8 @@ export async function POST(req: NextRequest) {
         department,
         university: universityResult.value,
         bio: bioResult.value,
+        interests: cleanInterests,
+        programmingLanguages: cleanLanguages,
       })
       .returning({
         id: users.id,
@@ -96,6 +127,8 @@ export async function POST(req: NextRequest) {
         department: users.department,
         university: users.university,
         bio: users.bio,
+        interests: users.interests,
+        programmingLanguages: users.programmingLanguages,
         createdAt: users.createdAt,
       });
 

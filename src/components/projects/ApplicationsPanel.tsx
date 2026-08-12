@@ -6,7 +6,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { statusColor, statusLabel, formatTimeAgo } from "@/lib/utils";
-import { FileText, CheckCircle2, XCircle, GraduationCap, Building2 } from "lucide-react";
+import {
+  FileText,
+  CheckCircle2,
+  XCircle,
+  GraduationCap,
+  Building2,
+} from "lucide-react";
 
 interface Application {
   id: number;
@@ -20,7 +26,8 @@ interface Application {
   studentAvatar?: string | null;
   studentDepartment?: string | null;
   studentUniversity?: string | null;
-  studentSkills: { id: number; name: string }[];
+  studentInterests?: string[];
+  studentProgrammingLanguages?: string[];
 }
 
 export function ApplicationsPanel({ projectId }: { projectId: number }) {
@@ -58,7 +65,9 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
       queryClient.invalidateQueries({
         queryKey: ["project-applications", projectId],
       });
-      queryClient.invalidateQueries({ queryKey: ["project", String(projectId)] });
+      queryClient.invalidateQueries({
+        queryKey: ["project", String(projectId)],
+      });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   });
@@ -71,10 +80,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-24 bg-slate-100 animate-pulse rounded-xl"
-          />
+          <div key={i} className="h-24 bg-slate-100 animate-pulse rounded-xl" />
         ))}
       </div>
     );
@@ -96,7 +102,9 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
         <Avatar name={app.studentName} src={app.studentAvatar} size="md" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <p className="font-semibold text-slate-900 text-sm">{app.studentName}</p>
+            <p className="font-semibold text-slate-900 text-sm">
+              {app.studentName}
+            </p>
             <Badge className={statusColor(app.status)}>
               {statusLabel(app.status)}
             </Badge>
@@ -115,18 +123,27 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
             )}
           </div>
 
-          {app.studentSkills.length > 0 && (
+          {app.studentInterests?.length ||
+          app.studentProgrammingLanguages?.length ? (
             <div className="flex flex-wrap gap-1 mb-3">
-              {app.studentSkills.map((s) => (
+              {app.studentInterests?.map((interest) => (
                 <span
-                  key={s.id}
+                  key={`i-${interest}`}
                   className="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-100"
                 >
-                  {s.name}
+                  {interest}
+                </span>
+              ))}
+              {app.studentProgrammingLanguages?.map((lang) => (
+                <span
+                  key={`l-${lang}`}
+                  className="px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 border border-emerald-100"
+                >
+                  {lang}
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
 
           {app.message && (
             <div className="bg-slate-50 rounded-lg p-3 mb-3">

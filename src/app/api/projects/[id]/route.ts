@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-  projects,
-  projectSkills,
-  skills,
-  users,
-  applications,
-  projectMembers,
-} from "@/db/schema";
+import { projects, users, applications, projectMembers } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { auditLog } from "@/lib/auditLog";
@@ -18,7 +11,6 @@ import {
   sanitizeDescription,
   parseMaxMembers,
   parseDeadline,
-  validateSkillIds,
   TITLE_MIN,
   TITLE_MAX,
   DESCRIPTION_MIN,
@@ -67,13 +59,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Get project skills
-    const pSkills = await db
-      .select({ id: skills.id, name: skills.name })
-      .from(projectSkills)
-      .innerJoin(skills, eq(projectSkills.skillId, skills.id))
-      .where(eq(projectSkills.projectId, projectId));
-
     // Get members
     const members = await db
       .select({
@@ -109,7 +94,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({
       project: {
         ...project,
-        skills: pSkills,
         members,
         memberCount: members.length,
         myApplication,
@@ -156,7 +140,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const body = await req.json();
-    const { title, description, status, maxMembers, deadline, skillIds } = body;
+    const { title, description, status, maxMembers, deadline } = body;
 
     // ---- Validate each field only if it was actually provided ----
 
@@ -236,18 +220,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       cleanDeadline = parsed.value;
     }
 
-    let cleanSkillIds: number[] | undefined;
-    if (skillIds !== undefined) {
-      const validated = await validateSkillIds(skillIds);
-      if (validated === null) {
-        return NextResponse.json(
-          { error: "One or more skillIds are invalid" },
-          { status: 400 }
-        );
-      }
-      cleanSkillIds = validated;
-    }
-
     await db
       .update(projects)
       .set({
@@ -259,20 +231,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         updatedAt: new Date(),
       })
       .where(eq(projects.id, projectId));
-
-    if (cleanSkillIds !== undefined) {
-      await db
-        .delete(projectSkills)
-        .where(eq(projectSkills.projectId, projectId));
-      if (cleanSkillIds.length > 0) {
-        await db.insert(projectSkills).values(
-          cleanSkillIds.map((sid) => ({
-            projectId,
-            skillId: sid,
-          }))
-        );
-      }
-    }
 
     return NextResponse.json({ message: "Updated successfully" });
   } catch (error) {

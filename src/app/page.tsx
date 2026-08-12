@@ -76,7 +76,7 @@ export default function HomePage() {
           </h1>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10">
             ResearchHub bridges the gap between academic research and student
-            ambition. Find projects that match your skills, collaborate in
+            ambition. Find projects that match your interests, collaborate in
             real-time, and advance science together.
           </p>
           <div className="flex items-center justify-center gap-4">
@@ -103,13 +103,13 @@ export default function HomePage() {
                 icon: "🔬",
                 title: "Post Research Projects",
                 description:
-                  "Professors create detailed project listings with required skills, deadlines, and team size.",
+                  "Professors create detailed project listings with deadlines and team size.",
               },
               {
                 icon: "🎯",
-                title: "Skill-Based Matching",
+                title: "Discover by Interest",
                 description:
-                  "Students filter projects by skills to find the perfect research opportunity.",
+                  "Students browse projects and apply to the ones matching their interests and department.",
               },
               {
                 icon: "💬",

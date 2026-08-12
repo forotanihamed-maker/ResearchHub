@@ -6,8 +6,16 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { StatCardSkeleton, ProjectCardSkeleton } from "@/components/ui/Skeleton";
-import { statusColor, statusLabel, formatDate, formatTimeAgo } from "@/lib/utils";
+import {
+  StatCardSkeleton,
+  ProjectCardSkeleton,
+} from "@/components/ui/Skeleton";
+import {
+  statusColor,
+  statusLabel,
+  formatDate,
+  formatTimeAgo,
+} from "@/lib/utils";
 import {
   FolderKanban,
   FileText,
@@ -39,7 +47,6 @@ interface Project {
   description: string;
   status: string;
   professorName: string;
-  skills: { id: number; name: string }[];
   memberCount: number;
   maxMembers: number;
   createdAt: string;
@@ -163,7 +170,9 @@ export default function DashboardPage() {
     <div>
       <TopBar
         title={`Welcome back, ${user?.name?.split(" ")[0]} 👋`}
-        subtitle={`${user?.role === "professor" ? "Professor" : "Student"} · ${user?.department || "University Research Platform"}`}
+        subtitle={`${user?.role === "professor" ? "Professor" : "Student"} · ${
+          user?.department || "University Research Platform"
+        }`}
       />
 
       <div className="p-6 space-y-6">
@@ -289,7 +298,10 @@ export default function DashboardPage() {
                 {appsLoading ? (
                   <div className="p-4 space-y-3">
                     {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="h-16 bg-slate-100 animate-pulse rounded-lg" />
+                      <div
+                        key={i}
+                        className="h-16 bg-slate-100 animate-pulse rounded-lg"
+                      />
                     ))}
                   </div>
                 ) : applications.length === 0 ? (
@@ -343,7 +355,9 @@ export default function DashboardPage() {
                     <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center">
                       <BookOpen size={16} className="text-emerald-600" />
                     </div>
-                    <span className="text-sm text-slate-700">Open Projects</span>
+                    <span className="text-sm text-slate-700">
+                      Open Projects
+                    </span>
                   </div>
                   <span className="font-bold text-slate-900">
                     {stats?.openProjects ?? 0}

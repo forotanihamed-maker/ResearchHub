@@ -1,7 +1,3 @@
-import { db } from "@/db";
-import { skills } from "@/db/schema";
-import { inArray } from "drizzle-orm";
-
 export const PROJECT_STATUSES = ["open", "in_progress", "completed"] as const;
 export type ProjectStatus = typeof PROJECT_STATUSES[number];
 
@@ -167,27 +163,76 @@ export function parseOptionalText(
   return { ok: true, value: trimmed.length === 0 ? null : trimmed };
 }
 
+// ============================================================
+// Interests & Programming Languages
+// (replaces the old free-form Skills system)
+// ============================================================
+
+// Programming languages MUST come from this fixed list — never free text.
+export const PROGRAMMING_LANGUAGES = [
+  "Python",
+  "JavaScript",
+  "TypeScript",
+  "Java",
+  "C",
+  "C++",
+  "C#",
+  "Go",
+  "Rust",
+  "PHP",
+  "Kotlin",
+  "Swift",
+] as const;
+export type ProgrammingLanguage = typeof PROGRAMMING_LANGUAGES[number];
+
+export const MAX_PROGRAMMING_LANGUAGES = 8;
+export const MAX_INTERESTS = 8;
+export const INTEREST_MIN_LEN = 2;
+export const INTEREST_MAX_LEN = 60;
+
 /**
- * Validates that skillIds is an array of positive integers and that
- * every one of them actually exists in the skills table.
- * Returns the deduplicated list of valid IDs, or null if the input
- * is malformed or references skills that don't exist.
+ * Validates `programmingLanguages`: must be an array of strings, each one
+ * of the fixed PROGRAMMING_LANGUAGES values, deduplicated, capped at
+ * MAX_PROGRAMMING_LANGUAGES entries.
+ * - undefined -> not provided, caller leaves the field untouched
+ * - otherwise -> must be a valid array (possibly empty, to clear it)
+ * Returns the cleaned list, or null if invalid.
  */
-export async function validateSkillIds(
+export function validateProgrammingLanguages(
   value: unknown
-): Promise<number[] | null> {
-  if (value === undefined) return [];
+): ProgrammingLanguage[] | null {
   if (!Array.isArray(value)) return null;
+  const deduped = [...new Set(value)];
+  if (deduped.length > MAX_PROGRAMMING_LANGUAGES) return null;
+  const allowed = PROGRAMMING_LANGUAGES as readonly string[];
+  if (!deduped.every((v) => typeof v === "string" && allowed.includes(v))) {
+    return null;
+  }
+  return deduped as ProgrammingLanguage[];
+}
 
-  const ids = [...new Set(value.map((v) => Number(v)))];
-  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) return null;
-  if (ids.length === 0) return [];
+/**
+ * Validates `interests`: an array of short free-text labels (e.g.
+ * "Machine Learning", "Web Security"). Not restricted to a fixed list —
+ * but trimmed, deduplicated, length-checked per item, and capped in count.
+ * Returns the cleaned list, or null if invalid.
+ */
+export function validateInterests(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  if (value.length > MAX_INTERESTS) return null;
 
-  const found = await db
-    .select({ id: skills.id })
-    .from(skills)
-    .where(inArray(skills.id, ids));
+  const cleaned: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") return null;
+    const trimmed = raw.trim();
+    if (
+      trimmed.length < INTEREST_MIN_LEN ||
+      trimmed.length > INTEREST_MAX_LEN
+    ) {
+      return null;
+    }
+    cleaned.push(trimmed);
+  }
 
-  if (found.length !== ids.length) return null;
-  return ids;
+  return [...new Set(cleaned)];
 }

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { users, userSkills, skills } from "@/db/schema";
+import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import {
   sanitizeName,
   isValidDepartment,
   parseOptionalText,
-  validateSkillIds,
+  validateInterests,
+  validateProgrammingLanguages,
   type Department,
 } from "@/lib/validation";
 
@@ -28,6 +29,8 @@ export async function GET() {
         bio: users.bio,
         department: users.department,
         university: users.university,
+        interests: users.interests,
+        programmingLanguages: users.programmingLanguages,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -37,14 +40,7 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get user skills
-    const userSkillRows = await db
-      .select({ id: skills.id, name: skills.name })
-      .from(userSkills)
-      .innerJoin(skills, eq(userSkills.skillId, skills.id))
-      .where(eq(userSkills.userId, authUser.userId));
-
-    return NextResponse.json({ user: { ...user, skills: userSkillRows } });
+    return NextResponse.json({ user });
   } catch (error) {
     console.error("Me error:", error);
     return NextResponse.json(
@@ -62,7 +58,14 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { name, bio, department, university, skillIds } = body;
+    const {
+      name,
+      bio,
+      department,
+      university,
+      interests,
+      programmingLanguages,
+    } = body;
 
     let cleanName: string | undefined;
     if (name !== undefined) {
@@ -108,16 +111,28 @@ export async function PATCH(req: Request) {
       cleanUniversity = result.value;
     }
 
-    let cleanSkillIds: number[] | undefined;
-    if (skillIds !== undefined) {
-      const validated = await validateSkillIds(skillIds);
+    let cleanInterests: string[] | undefined;
+    if (interests !== undefined) {
+      const validated = validateInterests(interests);
       if (validated === null) {
         return NextResponse.json(
-          { error: "One or more skillIds are invalid" },
+          { error: "Interests must be a list of short, valid labels" },
           { status: 400 }
         );
       }
-      cleanSkillIds = validated;
+      cleanInterests = validated;
+    }
+
+    let cleanLanguages: string[] | undefined;
+    if (programmingLanguages !== undefined) {
+      const validated = validateProgrammingLanguages(programmingLanguages);
+      if (validated === null) {
+        return NextResponse.json(
+          { error: "One or more programming languages are invalid" },
+          { status: 400 }
+        );
+      }
+      cleanLanguages = validated;
     }
 
     await db
@@ -127,22 +142,11 @@ export async function PATCH(req: Request) {
         bio: cleanBio,
         department: cleanDepartment,
         university: cleanUniversity,
+        interests: cleanInterests,
+        programmingLanguages: cleanLanguages,
         updatedAt: new Date(),
       })
       .where(eq(users.id, authUser.userId));
-
-    // Update skills if provided
-    if (cleanSkillIds !== undefined) {
-      await db.delete(userSkills).where(eq(userSkills.userId, authUser.userId));
-      if (cleanSkillIds.length > 0) {
-        await db.insert(userSkills).values(
-          cleanSkillIds.map((skillId) => ({
-            userId: authUser.userId,
-            skillId,
-          }))
-        );
-      }
-    }
 
     return NextResponse.json({ message: "Updated successfully" });
   } catch (error) {

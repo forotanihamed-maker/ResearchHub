@@ -1,23 +1,10 @@
 import "dotenv/config";
 import { db } from "./index";
-import { users, skills } from "./schema";
+import { users } from "./schema";
 import bcrypt from "bcryptjs";
 
 async function seed() {
   console.log("🌱 شروع مقداردهی اولیه دیتابیس...");
-
-  // مهارت‌ها
-  console.log("📚 ایجاد مهارت‌ها...");
-  await db
-    .insert(skills)
-    .values([
-      { name: "JavaScript" },
-      { name: "Python" },
-      { name: "React" },
-      { name: "Node.js" },
-      { name: "Machine Learning" },
-      { name: "Security" },
-    ]);
 
   const professorPassword = await bcrypt.hash("professor123", 10);
   const studentPassword = await bcrypt.hash("student123", 10);
@@ -32,6 +19,8 @@ async function seed() {
       department: "مهندسی نرم‌افزار",
       university: "دانشگاه علم و صنعت ایران",
       bio: "عضو هیئت علمی دانشکده مهندسی کامپیوتر دانشگاه علم و صنعت",
+      interests: ["Software Architecture", "Cloud Systems"],
+      programmingLanguages: ["JavaScript", "TypeScript", "Go"],
     },
     {
       name: "دکتر سارا احمدی",
@@ -41,6 +30,8 @@ async function seed() {
       department: "هوش مصنوعی",
       university: "دانشگاه علم و صنعت ایران",
       bio: "متخصص یادگیری ماشین و هوش مصنوعی",
+      interests: ["Machine Learning", "Computer Vision"],
+      programmingLanguages: ["Python", "C++"],
     },
   ]);
 
@@ -54,6 +45,8 @@ async function seed() {
       department: "مهندسی نرم‌افزار",
       university: "دانشگاه علم و صنعت ایران",
       bio: "دانشجوی کارشناسی ارشد مهندسی نرم‌افزار",
+      interests: ["Web Development", "Distributed Systems"],
+      programmingLanguages: ["JavaScript", "TypeScript"],
     },
     {
       name: "مریم حسینی",
@@ -63,6 +56,8 @@ async function seed() {
       department: "شبکه‌های کامپیوتری",
       university: "دانشگاه علم و صنعت ایران",
       bio: "دانشجوی کارشناسی شبکه‌های کامپیوتری",
+      interests: ["Network Security"],
+      programmingLanguages: ["Python", "C"],
     },
     {
       name: "امیر رضایی",
@@ -72,6 +67,8 @@ async function seed() {
       department: "امنیت اطلاعات",
       university: "دانشگاه علم و صنعت ایران",
       bio: "دانشجوی دکتری امنیت اطلاعات",
+      interests: ["Cybersecurity", "Cryptography"],
+      programmingLanguages: ["Python", "Rust"],
     },
   ]);
 

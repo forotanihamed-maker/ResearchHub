@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
   users,
-  skills,
   projects,
-  projectSkills,
   applications,
   projectMembers,
   chatMessages,
-  userSkills,
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth";
-import { sql } from "drizzle-orm";
 import { auditLog } from "@/lib/auditLog";
 import { getClientIp } from "@/lib/rateLimit";
+import type { Department } from "@/lib/validation";
 
 // ============================================================
 // 🔒 Seed access guard
@@ -45,144 +42,19 @@ function assertSeedAccess(req: NextRequest): NextResponse | null {
 }
 
 // ============================================================
-// 📌 نگاشت گرایش‌ها به مهارت‌های مرتبط
+// 📌 کاربران تستی (Skills حذف شد؛ به‌جایش interests + programmingLanguages)
 // ============================================================
-const DEPARTMENT_SKILLS_MAP: Record<string, string[]> = {
-  "مهندسی نرم‌افزار": [
-    "React.js",
-    "Next.js",
-    "Node.js",
-    "Express.js",
-    "TypeScript",
-    "JavaScript",
-    "Python",
-    "Django",
-    "Spring Boot",
-    "Java",
-    "Docker",
-    "Kubernetes",
-    "CI/CD",
-    "Git",
-    "Microservices",
-    "REST API",
-    "GraphQL",
-    "PostgreSQL",
-    "MongoDB",
-    "Redis",
-    "AWS",
-  ],
-  "هوش مصنوعی": [
-    "Python",
-    "TensorFlow",
-    "PyTorch",
-    "Keras",
-    "Scikit-learn",
-    "Pandas",
-    "NumPy",
-    "OpenCV",
-    "NLP",
-    "Computer Vision",
-    "Deep Learning",
-    "Machine Learning",
-    "Reinforcement Learning",
-    "Transformers",
-    "BERT",
-    "LLM",
-    "LangChain",
-    "Hugging Face",
-    "Data Science",
-    "Statistics",
-  ],
-  "شبکه‌های کامپیوتری": [
-    "Cisco",
-    "CCNA",
-    "TCP/IP",
-    "OSPF",
-    "BGP",
-    "VLAN",
-    "Network Security",
-    "Firewall",
-    "VPN",
-    "SDN",
-    "Wireshark",
-    "Routing Protocols",
-    "IPv6",
-    "DNS",
-    "DHCP",
-    "Load Balancing",
-    "Network Automation",
-    "Ansible",
-  ],
-  "معماری سیستم‌های کامپیوتری": [
-    "Verilog",
-    "VHDL",
-    "FPGA",
-    "Computer Architecture",
-    "Digital Design",
-    "RISC-V",
-    "ARM",
-    "Assembly",
-    "C",
-    "C++",
-    "Embedded Systems",
-    "RTOS",
-    "Arduino",
-    "Raspberry Pi",
-    "IoT",
-    "SPI",
-    "I2C",
-    "UART",
-  ],
-  "امنیت اطلاعات": [
-    "Cybersecurity",
-    "Penetration Testing",
-    "Kali Linux",
-    "Metasploit",
-    "Burp Suite",
-    "OWASP",
-    "Cryptography",
-    "RSA",
-    "AES",
-    "SSL/TLS",
-    "Network Security",
-    "SIEM",
-    "Incident Response",
-    "Malware Analysis",
-    "Reverse Engineering",
-    "Risk Assessment",
-    "ISO 27001",
-  ],
-  "علوم داده": [
-    "Python",
-    "R",
-    "SQL",
-    "Pandas",
-    "NumPy",
-    "Matplotlib",
-    "Seaborn",
-    "Plotly",
-    "Tableau",
-    "Power BI",
-    "Machine Learning",
-    "Scikit-learn",
-    "TensorFlow",
-    "Data Visualization",
-    "Statistics",
-    "Probability",
-    "Big Data",
-    "Apache Spark",
-    "PySpark",
-    "Data Warehousing",
-    "ETL",
-    "Airflow",
-    "Kafka",
-  ],
-};
-
-// ============================================================
-// 📌 کاربران تستی جدید
-// ============================================================
-const DEMO_USERS = [
+const DEMO_USERS: {
+  name: string;
+  email: string;
+  password: string;
+  role: "professor" | "student";
+  department: Department;
+  university: string;
+  bio: string;
+  interests: string[];
+  programmingLanguages: string[];
+}[] = [
   {
     name: "دکتر علی محمدی",
     email: "ali.mohammadi@university.edu",
@@ -191,6 +63,8 @@ const DEMO_USERS = [
     department: "هوش مصنوعی",
     university: "دانشگاه علم و صنعت ایران",
     bio: "استاد گروه هوش مصنوعی، علاقه‌مند به یادگیری عمیق و بینایی ماشین",
+    interests: ["Deep Learning", "Computer Vision"],
+    programmingLanguages: ["Python", "C++"],
   },
   {
     name: "دکتر سارا حسینی",
@@ -200,6 +74,8 @@ const DEMO_USERS = [
     department: "مهندسی نرم‌افزار",
     university: "دانشگاه علم و صنعت ایران",
     bio: "استاد گروه مهندسی نرم‌افزار، تخصص در معماری سیستم‌های توزیع شده",
+    interests: ["Distributed Systems", "Software Architecture"],
+    programmingLanguages: ["TypeScript", "Go", "Java"],
   },
   {
     name: "رضا کریمی",
@@ -209,6 +85,8 @@ const DEMO_USERS = [
     department: "هوش مصنوعی",
     university: "دانشگاه علم و صنعت ایران",
     bio: "دانشجوی کارشناسی ارشد هوش مصنوعی، علاقه‌مند به پردازش زبان طبیعی",
+    interests: ["NLP", "Machine Learning"],
+    programmingLanguages: ["Python"],
   },
   {
     name: "مریم رضایی",
@@ -218,6 +96,8 @@ const DEMO_USERS = [
     department: "مهندسی نرم‌افزار",
     university: "دانشگاه علم و صنعت ایران",
     bio: "دانشجوی کارشناسی ارشد مهندسی نرم‌افزار، علاقه‌مند به توسعه وب و اپلیکیشن",
+    interests: ["Web Development"],
+    programmingLanguages: ["TypeScript", "JavaScript"],
   },
   {
     name: "امیرحسین موسوی",
@@ -227,11 +107,13 @@ const DEMO_USERS = [
     department: "شبکه‌های کامپیوتری",
     university: "دانشگاه علم و صنعت ایران",
     bio: "دانشجوی کارشناسی ارشد شبکه، علاقه‌مند به امنیت شبکه و SDN",
+    interests: ["Network Security", "SDN"],
+    programmingLanguages: ["Python", "C"],
   },
 ];
 
 // ============================================================
-// 📌 پروژه‌های نمونه جدید
+// 📌 پروژه‌های نمونه (بدون Skills)
 // ============================================================
 const DEMO_PROJECTS = [
   {
@@ -241,16 +123,14 @@ const DEMO_PROJECTS = [
     status: "open" as const,
     maxMembers: 4,
     deadline: new Date("2026-10-15"),
-    skills: ["Python", "TensorFlow", "OpenCV", "Deep Learning"],
   },
   {
     title: "پلتفرم مدیریت پروژه‌های دانشجویی",
     description:
       "ساخت یک پلتفرم وب کامل برای مدیریت پروژه‌های دانشجویی با قابلیت‌های: ثبت پروژه، ارسال درخواست، چت گروهی و داشبورد پیشرفته.",
-    status: "open" as const,
+    status: "in_progress" as const,
     maxMembers: 5,
     deadline: new Date("2026-08-30"),
-    skills: ["React.js", "Next.js", "PostgreSQL", "Tailwind CSS"],
   },
   {
     title: "تحلیل احساسات در متون فارسی با BERT",
@@ -259,16 +139,14 @@ const DEMO_PROJECTS = [
     status: "open" as const,
     maxMembers: 3,
     deadline: new Date("2026-09-20"),
-    skills: ["Python", "Transformers", "NLP", "PyTorch"],
   },
   {
     title: "سیستم تشخیص نفوذ در شبکه با یادگیری ماشین",
     description:
       "طراحی یک سیستم تشخیص نفوذ با استفاده از الگوریتم‌های یادگیری ماشین برای شناسایی حملات شبکه‌ای. نیاز به تحلیل داده‌های ترافیک شبکه.",
-    status: "open" as const,
+    status: "completed" as const,
     maxMembers: 4,
-    deadline: new Date("2026-11-01"),
-    skills: ["Python", "Machine Learning", "Network Security", "Scikit-learn"],
+    deadline: new Date("2026-05-01"),
   },
   {
     title: "طراحی و شبیه‌سازی پردازنده RISC-V",
@@ -277,12 +155,171 @@ const DEMO_PROJECTS = [
     status: "open" as const,
     maxMembers: 3,
     deadline: new Date("2026-10-01"),
-    skills: ["Verilog", "Computer Architecture", "RISC-V", "FPGA"],
   },
 ];
 
 // ============================================================
-// 🚀 GET: Reset and Seed Everything
+// 🚀 Shared seeding logic, used by both GET (with ?action=) and POST
+// ============================================================
+async function runFullSeed() {
+  // 1. ساخت کاربران
+  const userMap: Record<string, number> = {};
+  for (const userData of DEMO_USERS) {
+    const hashedPassword = await hashPassword(userData.password);
+    const [user] = await db
+      .insert(users)
+      .values({
+        name: userData.name,
+        email: userData.email,
+        password: hashedPassword,
+        role: userData.role,
+        department: userData.department,
+        university: userData.university,
+        bio: userData.bio,
+        interests: userData.interests,
+        programmingLanguages: userData.programmingLanguages,
+      })
+      .returning({ id: users.id });
+    userMap[userData.email] = user.id;
+  }
+
+  // 2. ساخت پروژه‌ها (همه متعلق به دکتر علی محمدی)
+  const professorId = userMap["ali.mohammadi@university.edu"];
+  const projectMap: Record<string, number> = {};
+
+  for (const projectData of DEMO_PROJECTS) {
+    const [project] = await db
+      .insert(projects)
+      .values({
+        title: projectData.title,
+        description: projectData.description,
+        status: projectData.status,
+        professorId,
+        maxMembers: projectData.maxMembers,
+        deadline: projectData.deadline,
+      })
+      .returning({ id: projects.id });
+
+    projectMap[projectData.title] = project.id;
+
+    await db
+      .insert(projectMembers)
+      .values({ projectId: project.id, userId: professorId })
+      .onConflictDoNothing();
+  }
+
+  // 3. درخواست‌های نمونه (pending / approved / rejected)
+  const student1Id = userMap["reza.karimi@student.edu"];
+  const student2Id = userMap["maryam.rezaei@student.edu"];
+  const student3Id = userMap["amir.mousavi@student.edu"];
+
+  const faceProjectId = projectMap["سیستم تشخیص چهره با یادگیری عمیق"];
+  const platformProjectId = projectMap["پلتفرم مدیریت پروژه‌های دانشجویی"];
+  const sentimentProjectId = projectMap["تحلیل احساسات در متون فارسی با BERT"];
+
+  // pending
+  if (faceProjectId && student1Id) {
+    await db.insert(applications).values({
+      projectId: faceProjectId,
+      studentId: student1Id,
+      status: "pending",
+      message:
+        "سلام استاد، من قبلاً روی پروژه‌های تشخیص چهره کار کرده‌ام و علاقه‌مند به همکاری هستم.",
+    });
+  }
+
+  // approved -> becomes a project member
+  if (platformProjectId && student2Id) {
+    await db.insert(applications).values({
+      projectId: platformProjectId,
+      studentId: student2Id,
+      status: "approved",
+      message:
+        "سلام استاد، من تجربه کار با Next.js و Tailwind دارم و می‌توانم کمک کنم.",
+    });
+    await db
+      .insert(projectMembers)
+      .values({ projectId: platformProjectId, userId: student2Id })
+      .onConflictDoNothing();
+  }
+
+  // rejected
+  if (sentimentProjectId && student3Id) {
+    await db.insert(applications).values({
+      projectId: sentimentProjectId,
+      studentId: student3Id,
+      status: "rejected",
+      message: "سلام استاد، من به حوزه NLP علاقه‌مند هستم.",
+    });
+  }
+
+  // another pending, on the same project as above
+  if (sentimentProjectId && student1Id) {
+    await db.insert(applications).values({
+      projectId: sentimentProjectId,
+      studentId: student1Id,
+      status: "pending",
+      message:
+        "سلام استاد، من به حوزه NLP علاقه‌مند هستم و با PyTorch کار کرده‌ام.",
+    });
+  }
+
+  // 4. چند پیام نمونه در چت پروژه‌ای که دانشجو واقعاً عضو آن است
+  if (platformProjectId && professorId && student2Id) {
+    await db.insert(chatMessages).values([
+      {
+        projectId: platformProjectId,
+        senderId: professorId,
+        content:
+          "سلام مریم جان، خوش اومدی به تیم! بریم یه نگاه به backlog بندازیم.",
+      },
+      {
+        projectId: platformProjectId,
+        senderId: student2Id,
+        content: "سلام استاد، ممنون! آماده‌ام شروع کنم.",
+      },
+      {
+        projectId: platformProjectId,
+        senderId: professorId,
+        content: "عالیه، بخش داشبورد رو اول شروع کن.",
+      },
+    ]);
+  }
+
+  const finalUsers = await db.select().from(users);
+  const finalProjects = await db.select().from(projects);
+  const finalApplications = await db.select().from(applications);
+  const finalMessages = await db.select().from(chatMessages);
+
+  return {
+    users: {
+      total: finalUsers.length,
+      list: finalUsers.map((u) => ({
+        name: u.name,
+        email: u.email,
+        role: u.role,
+      })),
+    },
+    projects: {
+      total: finalProjects.length,
+      list: finalProjects.map((p) => ({ title: p.title, status: p.status })),
+    },
+    applications: { total: finalApplications.length },
+    messages: { total: finalMessages.length },
+  };
+}
+
+async function clearAllData() {
+  await db.delete(chatMessages);
+  await db.delete(projectMembers);
+  await db.delete(applications);
+  await db.delete(projects);
+  await db.delete(users);
+}
+
+// ============================================================
+// 🚀 GET: supports ?action=clear and ?action=force, otherwise
+// refuses to overwrite existing data.
 // ============================================================
 export async function GET(req: NextRequest) {
   const denied = assertSeedAccess(req);
@@ -292,28 +329,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
 
-    // ============================================================
-    // 1. پاک کردن همه داده‌ها
-    // ============================================================
     if (action === "clear") {
-      await db.delete(chatMessages);
-      await db.delete(projectMembers);
-      await db.delete(applications);
-      await db.delete(projectSkills);
-      await db.delete(projects);
-      await db.delete(userSkills);
-      await db.delete(users);
-      await db.delete(skills);
-
+      await clearAllData();
       return NextResponse.json({
         message:
-          "✅ All data cleared successfully (users, projects, skills, applications, chat, members)",
+          "✅ All data cleared successfully (users, projects, applications, chat, members)",
       });
     }
 
-    // ============================================================
-    // 2. بررسی اینکه آیا قبلاً داده‌هایی وجود دارد
-    // ============================================================
     const existingUsers = await db.select().from(users);
     if (existingUsers.length > 0 && action !== "force") {
       return NextResponse.json({
@@ -327,201 +350,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ============================================================
-    // 3. جمع‌آوری همه مهارت‌ها و درج در دیتابیس
-    // ============================================================
-    const allSkillNames = new Set<string>();
-    for (const skillsList of Object.values(DEPARTMENT_SKILLS_MAP)) {
-      for (const skill of skillsList) {
-        allSkillNames.add(skill);
-      }
+    if (action === "force") {
+      await clearAllData();
     }
 
-    // درج مهارت‌ها
-    const skillMap: Record<string, number> = {};
-    for (const name of allSkillNames) {
-      const [result] = await db
-        .insert(skills)
-        .values({ name })
-        .onConflictDoNothing()
-        .returning({ id: skills.id });
-      if (result) {
-        skillMap[name] = result.id;
-      } else {
-        // اگر مهارت قبلاً وجود داشت، آن را پیدا کن
-        const [existing] = await db
-          .select({ id: skills.id })
-          .from(skills)
-          .where(sql`${skills.name} = ${name}`);
-        if (existing) {
-          skillMap[name] = existing.id;
-        }
-      }
-    }
-
-    // ============================================================
-    // 4. ساخت کاربران تستی جدید (با رفع خطای Enum)
-    // ============================================================
-    const userMap: Record<string, number> = {};
-    for (const userData of DEMO_USERS) {
-      const hashedPassword = await hashPassword(userData.password);
-      const [user] = await db
-        .insert(users)
-        .values({
-          name: userData.name,
-          email: userData.email,
-          password: hashedPassword,
-          role: userData.role,
-          department: sql`${userData.department}`,
-          university: userData.university,
-          bio: userData.bio,
-        })
-        .returning({ id: users.id });
-      userMap[userData.email] = user.id;
-    }
-
-    // ============================================================
-    // 5. اضافه کردن مهارت‌ها به کاربران (userSkills)
-    // ============================================================
-    for (const userData of DEMO_USERS) {
-      const userId = userMap[userData.email];
-      const departmentSkills = DEPARTMENT_SKILLS_MAP[userData.department] || [];
-      for (const skillName of departmentSkills) {
-        const skillId = skillMap[skillName];
-        if (skillId) {
-          await db
-            .insert(userSkills)
-            .values({ userId, skillId })
-            .onConflictDoNothing();
-        }
-      }
-    }
-
-    // ============================================================
-    // 6. ساخت پروژه‌های نمونه جدید
-    // ============================================================
-    const projectMap: Record<string, number> = {};
-    for (const projectData of DEMO_PROJECTS) {
-      // استاد اول (دکتر علی محمدی) را به عنوان استاد پروژه انتخاب کن
-      const professorId = userMap["ali.mohammadi@university.edu"];
-
-      const [project] = await db
-        .insert(projects)
-        .values({
-          title: projectData.title,
-          description: projectData.description,
-          status: projectData.status,
-          professorId: professorId,
-          maxMembers: projectData.maxMembers,
-          deadline: projectData.deadline,
-        })
-        .returning({ id: projects.id });
-
-      projectMap[projectData.title] = project.id;
-
-      // اضافه کردن مهارت‌های پروژه
-      for (const skillName of projectData.skills) {
-        const skillId = skillMap[skillName];
-        if (skillId) {
-          await db
-            .insert(projectSkills)
-            .values({ projectId: project.id, skillId })
-            .onConflictDoNothing();
-        }
-      }
-
-      // اضافه کردن استاد به عنوان عضو پروژه
-      await db
-        .insert(projectMembers)
-        .values({ projectId: project.id, userId: professorId })
-        .onConflictDoNothing();
-    }
-
-    // ============================================================
-    // 7. ساخت برخی درخواست‌های نمونه
-    // ============================================================
-    const student1Id = userMap["reza.karimi@student.edu"];
-    const student2Id = userMap["maryam.rezaei@student.edu"];
-    const student3Id = userMap["amir.mousavi@student.edu"];
-
-    // درخواست اول: رضا کریمی برای پروژه هوش مصنوعی
-    if (projectMap["سیستم تشخیص چهره با یادگیری عمیق"] && student1Id) {
-      await db.insert(applications).values({
-        projectId: projectMap["سیستم تشخیص چهره با یادگیری عمیق"],
-        studentId: student1Id,
-        status: "pending",
-        message:
-          "سلام استاد، من قبلاً روی پروژه‌های تشخیص چهره کار کرده‌ام و علاقه‌مند به همکاری هستم.",
-      });
-    }
-
-    // درخواست دوم: مریم رضایی برای پروژه پلتفرم
-    if (projectMap["پلتفرم مدیریت پروژه‌های دانشجویی"] && student2Id) {
-      await db.insert(applications).values({
-        projectId: projectMap["پلتفرم مدیریت پروژه‌های دانشجویی"],
-        studentId: student2Id,
-        status: "approved",
-        message:
-          "سلام استاد، من تجربه کار با Next.js و Tailwind دارم و می‌توانم کمک کنم.",
-      });
-      // اضافه کردن به اعضای پروژه
-      await db.insert(projectMembers).values({
-        projectId: projectMap["پلتفرم مدیریت پروژه‌های دانشجویی"],
-        userId: student2Id,
-      });
-    }
-
-    // درخواست سوم: امیرحسین موسوی برای پروژه تحلیل احساسات
-    if (projectMap["تحلیل احساسات در متون فارسی با BERT"] && student3Id) {
-      await db.insert(applications).values({
-        projectId: projectMap["تحلیل احساسات در متون فارسی با BERT"],
-        studentId: student3Id,
-        status: "pending",
-        message:
-          "سلام استاد، من پایان‌نامه کارشناسی‌ارشد خود را در حوزه NLP انجام داده‌ام.",
-      });
-    }
-
-    // درخواست چهارم: رضا کریمی برای پروژه تحلیل احساسات
-    if (projectMap["تحلیل احساسات در متون فارسی با BERT"] && student1Id) {
-      await db.insert(applications).values({
-        projectId: projectMap["تحلیل احساسات در متون فارسی با BERT"],
-        studentId: student1Id,
-        status: "pending",
-        message:
-          "سلام استاد، من به حوزه NLP علاقه‌مند هستم و با PyTorch کار کرده‌ام.",
-      });
-    }
-
-    // ============================================================
-    // 8. خروجی نهایی
-    // ============================================================
-    const finalUsers = await db.select().from(users);
-    const finalProjects = await db.select().from(projects);
-    const finalSkills = await db.select().from(skills);
-    const finalApplications = await db.select().from(applications);
+    const summary = await runFullSeed();
 
     return NextResponse.json({
       message: "✅ All data reset and seeded successfully!",
-      users: {
-        total: finalUsers.length,
-        list: finalUsers.map((u) => ({
-          name: u.name,
-          email: u.email,
-          role: u.role,
-        })),
-      },
-      skills: {
-        total: finalSkills.length,
-        count: finalSkills.length,
-      },
-      projects: {
-        total: finalProjects.length,
-        list: finalProjects.map((p) => ({ title: p.title, status: p.status })),
-      },
-      applications: {
-        total: finalApplications.length,
-      },
+      ...summary,
     });
   } catch (error) {
     console.error("Seed error:", error);
@@ -536,111 +373,19 @@ export async function GET(req: NextRequest) {
 }
 
 // ============================================================
-// 🧪 POST: Reset and Seed (یک‌جا)
+// 🧪 POST: unconditional clear + reseed (one-shot reset)
 // ============================================================
 export async function POST(req: NextRequest) {
   const denied = assertSeedAccess(req);
   if (denied) return denied;
 
   try {
-    // 1. پاک کردن همه داده‌ها
-    await db.delete(chatMessages);
-    await db.delete(projectMembers);
-    await db.delete(applications);
-    await db.delete(projectSkills);
-    await db.delete(projects);
-    await db.delete(userSkills);
-    await db.delete(users);
-    await db.delete(skills);
-
-    // 2. جمع‌آوری همه مهارت‌ها
-    const allSkillNames = new Set<string>();
-    for (const skillsList of Object.values(DEPARTMENT_SKILLS_MAP)) {
-      for (const skill of skillsList) {
-        allSkillNames.add(skill);
-      }
-    }
-
-    // 3. درج مهارت‌ها
-    const skillMap: Record<string, number> = {};
-    for (const name of allSkillNames) {
-      const [result] = await db
-        .insert(skills)
-        .values({ name })
-        .onConflictDoNothing()
-        .returning({ id: skills.id });
-      if (result) {
-        skillMap[name] = result.id;
-      }
-    }
-
-    // 4. ساخت کاربران
-    const userMap: Record<string, number> = {};
-    for (const userData of DEMO_USERS) {
-      const hashedPassword = await hashPassword(userData.password);
-      const [user] = await db
-        .insert(users)
-        .values({
-          name: userData.name,
-          email: userData.email,
-          password: hashedPassword,
-          role: userData.role,
-          department: sql`${userData.department}`,
-          university: userData.university,
-          bio: userData.bio,
-        })
-        .returning({ id: users.id });
-      userMap[userData.email] = user.id;
-    }
-
-    // 5. اضافه کردن مهارت‌های کاربران
-    for (const userData of DEMO_USERS) {
-      const userId = userMap[userData.email];
-      const departmentSkills = DEPARTMENT_SKILLS_MAP[userData.department] || [];
-      for (const skillName of departmentSkills) {
-        const skillId = skillMap[skillName];
-        if (skillId) {
-          await db
-            .insert(userSkills)
-            .values({ userId, skillId })
-            .onConflictDoNothing();
-        }
-      }
-    }
-
-    // 6. ساخت پروژه‌ها
-    const professorId = userMap["ali.mohammadi@university.edu"];
-    for (const projectData of DEMO_PROJECTS) {
-      const [project] = await db
-        .insert(projects)
-        .values({
-          title: projectData.title,
-          description: projectData.description,
-          status: projectData.status,
-          professorId: professorId,
-          maxMembers: projectData.maxMembers,
-          deadline: projectData.deadline,
-        })
-        .returning({ id: projects.id });
-
-      for (const skillName of projectData.skills) {
-        const skillId = skillMap[skillName];
-        if (skillId) {
-          await db
-            .insert(projectSkills)
-            .values({ projectId: project.id, skillId })
-            .onConflictDoNothing();
-        }
-      }
-
-      await db
-        .insert(projectMembers)
-        .values({ projectId: project.id, userId: professorId })
-        .onConflictDoNothing();
-    }
+    await clearAllData();
+    const summary = await runFullSeed();
 
     return NextResponse.json({
       message: "✅ All data reset and seeded successfully via POST!",
+      ...summary,
     });
   } catch (error) {
     console.error("Seed error:", error);

@@ -6,8 +6,8 @@ import {
   timestamp,
   pgEnum,
   integer,
-  boolean,
   primaryKey,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -35,83 +35,76 @@ export const applicationStatusEnum = pgEnum("application_status", [
 export const messageTypeEnum = pgEnum("message_type", ["text"]);
 
 // Users
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  password: varchar("password", { length: 255 }).notNull(),
-  role: roleEnum("role").notNull(),
-  avatar: varchar("avatar", { length: 512 }),
-  bio: text("bio"),
-  department: departmentEnum("department").notNull(),
-  university: varchar("university", { length: 255 }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Skills
-export const skills = pgTable("skills", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 100 }).notNull().unique(),
-});
-
-// User Skills (junction)
-export const userSkills = pgTable(
-  "user_skills",
+export const users = pgTable(
+  "users",
   {
-    userId: integer("user_id")
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull().unique(),
+    password: varchar("password", { length: 255 }).notNull(),
+    role: roleEnum("role").notNull(),
+    avatar: varchar("avatar", { length: 512 }),
+    bio: text("bio"),
+    department: departmentEnum("department").notNull(),
+    university: varchar("university", { length: 255 }),
+    // Replaces the old Skills system. Validated array of short interest
+    // labels (e.g. "Machine Learning", "Web Security").
+    interests: text("interests").array().notNull().default([]),
+    // Validated against a fixed list of language names in
+    // src/lib/validation.ts — never accepted as free text.
+    programmingLanguages: text("programming_languages")
+      .array()
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    skillId: integer("skill_id")
-      .notNull()
-      .references(() => skills.id, { onDelete: "cascade" }),
+      .default([]),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.skillId] })]
+  (table) => [index("users_email_idx").on(table.email)]
 );
 
 // Projects
-export const projects = pgTable("projects", {
-  id: serial("id").primaryKey(),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description").notNull(),
-  status: projectStatusEnum("status").notNull().default("open"),
-  professorId: integer("professor_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  maxMembers: integer("max_members").notNull().default(5),
-  deadline: timestamp("deadline"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Project Required Skills (junction)
-export const projectSkills = pgTable(
-  "project_skills",
+export const projects = pgTable(
+  "projects",
   {
-    projectId: integer("project_id")
+    id: serial("id").primaryKey(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description").notNull(),
+    status: projectStatusEnum("status").notNull().default("open"),
+    professorId: integer("professor_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    skillId: integer("skill_id")
-      .notNull()
-      .references(() => skills.id, { onDelete: "cascade" }),
+      .references(() => users.id, { onDelete: "cascade" }),
+    maxMembers: integer("max_members").notNull().default(5),
+    deadline: timestamp("deadline"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.skillId] })]
+  (table) => [
+    index("projects_professor_id_idx").on(table.professorId),
+    index("projects_status_idx").on(table.status),
+  ]
 );
 
 // Applications
-export const applications = pgTable("applications", {
-  id: serial("id").primaryKey(),
-  projectId: integer("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  studentId: integer("student_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  status: applicationStatusEnum("status").notNull().default("pending"),
-  message: text("message"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const applications = pgTable(
+  "applications",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    studentId: integer("student_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: applicationStatusEnum("status").notNull().default("pending"),
+    message: text("message"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("applications_project_id_idx").on(table.projectId),
+    index("applications_student_id_idx").on(table.studentId),
+  ]
+);
 
 // Project Members (approved members)
 export const projectMembers = pgTable(
@@ -125,40 +118,40 @@ export const projectMembers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     joinedAt: timestamp("joined_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.userId] })]
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.userId] }),
+    index("project_members_project_id_idx").on(table.projectId),
+    index("project_members_user_id_idx").on(table.userId),
+  ]
 );
 
 // Chat Messages
-export const chatMessages = pgTable("chat_messages", {
-  id: serial("id").primaryKey(),
-  projectId: integer("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  senderId: integer("sender_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  type: messageTypeEnum("type").notNull().default("text"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    senderId: integer("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    type: messageTypeEnum("type").notNull().default("text"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("chat_messages_project_id_idx").on(table.projectId),
+    index("chat_messages_created_at_idx").on(table.createdAt),
+  ]
+);
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
-  userSkills: many(userSkills),
   ownedProjects: many(projects),
   applications: many(applications),
   projectMembers: many(projectMembers),
   chatMessages: many(chatMessages),
-}));
-
-export const skillsRelations = relations(skills, ({ many }) => ({
-  userSkills: many(userSkills),
-  projectSkills: many(projectSkills),
-}));
-
-export const userSkillsRelations = relations(userSkills, ({ one }) => ({
-  user: one(users, { fields: [userSkills.userId], references: [users.id] }),
-  skill: one(skills, { fields: [userSkills.skillId], references: [skills.id] }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -166,21 +159,9 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     fields: [projects.professorId],
     references: [users.id],
   }),
-  projectSkills: many(projectSkills),
   applications: many(applications),
   members: many(projectMembers),
   chatMessages: many(chatMessages),
-}));
-
-export const projectSkillsRelations = relations(projectSkills, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectSkills.projectId],
-    references: [projects.id],
-  }),
-  skill: one(skills, {
-    fields: [projectSkills.skillId],
-    references: [skills.id],
-  }),
 }));
 
 export const applicationsRelations = relations(applications, ({ one }) => ({

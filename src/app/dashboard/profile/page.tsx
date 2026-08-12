@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
@@ -9,9 +9,14 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { X, Plus, Save, GraduationCap, Building2, Mail } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { X, Plus, Save, GraduationCap, Mail } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import {
+  DEPARTMENTS,
+  PROGRAMMING_LANGUAGES,
+  MAX_INTERESTS,
+  INTEREST_MAX_LEN,
+} from "@/lib/validation";
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -23,7 +28,9 @@ export default function ProfilePage() {
     department: "",
     university: "",
   });
-  const [selectedSkills, setSelectedSkills] = useState<number[]>([]);
+  const [languages, setLanguages] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [interestInput, setInterestInput] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -34,17 +41,10 @@ export default function ProfilePage() {
         department: user.department || "",
         university: user.university || "",
       });
-      setSelectedSkills(user.skills?.map((s) => s.id) || []);
+      setLanguages(user.programmingLanguages || []);
+      setInterests(user.interests || []);
     }
   }, [user]);
-
-  const { data: skillsData } = useQuery({
-    queryKey: ["skills"],
-    queryFn: async () => {
-      const res = await fetch("/api/skills");
-      return res.json() as Promise<{ skills: { id: number; name: string }[] }>;
-    },
-  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -56,7 +56,8 @@ export default function ProfilePage() {
           bio: form.bio,
           department: form.department,
           university: form.university,
-          skillIds: selectedSkills,
+          programmingLanguages: languages,
+          interests,
         }),
       });
       if (!res.ok) throw new Error("Failed to update profile");
@@ -64,16 +65,30 @@ export default function ProfilePage() {
     },
     onSuccess: async () => {
       await refreshUser();
-      queryClient.invalidateQueries({ queryKey: ["skills"] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
   });
 
-  const toggleSkill = (id: number) => {
-    setSelectedSkills((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+  const toggleLanguage = (lang: string) => {
+    setLanguages((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
     );
+  };
+
+  const addInterest = () => {
+    const trimmed = interestInput.trim();
+    if (!trimmed) return;
+    if (trimmed.length > INTEREST_MAX_LEN) return;
+    if (interests.includes(trimmed)) return;
+    if (interests.length >= MAX_INTERESTS) return;
+    setInterests((prev) => [...prev, trimmed]);
+    setInterestInput("");
+  };
+
+  const removeInterest = (value: string) => {
+    setInterests((prev) => prev.filter((i) => i !== value));
   };
 
   if (!user) return null;
@@ -132,15 +147,26 @@ export default function ProfilePage() {
                 rows={4}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Department"
-                  placeholder="e.g., Computer Science"
-                  value={form.department}
-                  onChange={(e) =>
-                    setForm({ ...form, department: e.target.value })
-                  }
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Department
+                  </label>
+                  <select
+                    value={form.department}
+                    onChange={(e) =>
+                      setForm({ ...form, department: e.target.value })
+                    }
+                    className="w-full rounded-lg border px-3 py-2.5 text-base sm:text-sm text-slate-900 border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Select department</option>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <Input
                   label="University"
                   placeholder="e.g., MIT"
@@ -154,53 +180,91 @@ export default function ProfilePage() {
           </CardBody>
         </Card>
 
-        {/* Skills */}
+        {/* Programming Languages */}
         <Card>
           <CardBody>
             <div className="mb-4">
-              <h3 className="font-semibold text-slate-900">My Skills</h3>
+              <h3 className="font-semibold text-slate-900">
+                Programming Languages
+              </h3>
               <p className="text-sm text-slate-500 mt-0.5">
-                {user.role === "professor"
-                  ? "Skills you bring to research projects"
-                  : "Skills that match you with relevant projects"}
+                Languages you're comfortable working with
               </p>
             </div>
 
-            {/* Selected skills */}
-            {selectedSkills.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4 p-3 bg-indigo-50 rounded-lg">
-                {selectedSkills.map((skillId) => {
-                  const skill = skillsData?.skills?.find(
-                    (s) => s.id === skillId
-                  );
-                  if (!skill) return null;
-                  return (
-                    <button
-                      key={skillId}
-                      onClick={() => toggleSkill(skillId)}
-                      className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                    >
-                      {skill.name}
-                      <X size={12} />
-                    </button>
-                  );
-                })}
+            <div className="flex flex-wrap gap-2">
+              {PROGRAMMING_LANGUAGES.map((lang) => {
+                const isSelected = languages.includes(lang);
+                return (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => toggleLanguage(lang)}
+                    className={
+                      isSelected
+                        ? "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                        : "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-all"
+                    }
+                  >
+                    {isSelected ? <X size={12} /> : <Plus size={12} />}
+                    {lang}
+                  </button>
+                );
+              })}
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* Interests */}
+        <Card>
+          <CardBody>
+            <div className="mb-4">
+              <h3 className="font-semibold text-slate-900">
+                Research Interests
+              </h3>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Short labels like &quot;Machine Learning&quot; or &quot;Web
+                Security&quot; (up to {MAX_INTERESTS})
+              </p>
+            </div>
+
+            {interests.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {interests.map((interest) => (
+                  <button
+                    key={interest}
+                    type="button"
+                    onClick={() => removeInterest(interest)}
+                    className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                  >
+                    {interest}
+                    <X size={12} />
+                  </button>
+                ))}
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
-              {skillsData?.skills
-                ?.filter((s) => !selectedSkills.includes(s.id))
-                .map((skill) => (
-                  <button
-                    key={skill.id}
-                    onClick={() => toggleSkill(skill.id)}
-                    className="px-3 py-1.5 rounded-full text-sm font-medium border border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-all flex items-center gap-1"
-                  >
-                    <Plus size={12} /> {skill.name}
-                  </button>
-                ))}
-            </div>
+            {interests.length < MAX_INTERESTS && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={interestInput}
+                  onChange={(e) => setInterestInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addInterest();
+                    }
+                  }}
+                  maxLength={INTEREST_MAX_LEN}
+                  placeholder="Add an interest..."
+                  className="flex-1 rounded-lg border px-3 py-2 text-base sm:text-sm border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <Button type="button" variant="outline" onClick={addInterest}>
+                  <Plus size={14} /> Add
+                </Button>
+              </div>
+            )}
           </CardBody>
         </Card>
 

@@ -14,6 +14,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEPARTMENTS } from "@/lib/validation";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -27,14 +28,6 @@ export default function RegisterPage() {
     university: "",
     bio: "",
   });
-  const COMPUTER_ENGINEERING_FIELDS = [
-    "مهندسی نرم‌افزار",
-    "هوش مصنوعی",
-    "شبکه‌های کامپیوتری",
-    "معماری سیستم‌های کامپیوتری",
-    "امنیت اطلاعات",
-    "علوم داده",
-  ];
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -219,7 +212,7 @@ export default function RegisterPage() {
                 className="w-full border rounded px-3 py-2"
               >
                 <option value="">انتخاب گرایش</option>
-                {COMPUTER_ENGINEERING_FIELDS.map((field) => (
+                {DEPARTMENTS.map((field) => (
                   <option key={field} value={field}>
                     {field}
                   </option>

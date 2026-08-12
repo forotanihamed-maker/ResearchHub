@@ -17,7 +17,8 @@ export interface User {
   bio?: string | null;
   department?: string | null;
   university?: string | null;
-  skills?: { id: number; name: string }[];
+  interests?: string[];
+  programmingLanguages?: string[];
   createdAt?: string;
 }
 
@@ -38,6 +39,8 @@ interface RegisterData {
   department?: string;
   university?: string;
   bio?: string;
+  interests?: string[];
+  programmingLanguages?: string[];
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
