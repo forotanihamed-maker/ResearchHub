@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { chatMessages, projectMembers, users, projects } from "@/db/schema";
-import { eq, asc, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+const MESSAGE_LIMIT = 50;
+const CHAT_WINDOW_MS = 60 * 1000; // 1 minute
+const CHAT_MAX_MESSAGES_PER_WINDOW = 20; // ~1 message every 3s, generous for real chat use
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -50,7 +55,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const messages = await db
+    const recentMessages = await db
       .select({
         id: chatMessages.id,
         projectId: chatMessages.projectId,
@@ -65,7 +70,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .from(chatMessages)
       .innerJoin(users, eq(chatMessages.senderId, users.id))
       .where(eq(chatMessages.projectId, projectId))
-      .orderBy(asc(chatMessages.createdAt));
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(MESSAGE_LIMIT);
+
+    // We fetched newest-first to apply the LIMIT; reverse back to
+    // chronological order for display.
+    const messages = recentMessages.reverse();
 
     return NextResponse.json({ messages });
   } catch (error) {
@@ -108,6 +118,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json(
         { error: "Message is too long" },
         { status: 400 }
+      );
+    }
+
+    const rateLimitKey = `chat:${projectId}:${authUser.userId}`;
+    const rl = checkRateLimit(
+      rateLimitKey,
+      CHAT_MAX_MESSAGES_PER_WINDOW,
+      CHAT_WINDOW_MS
+    );
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "You're sending messages too quickly. Please slow down." },
+        { status: 429, headers: { "Retry-After": "60" } }
       );
     }
 

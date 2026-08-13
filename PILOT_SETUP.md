@@ -1,0 +1,104 @@
+# راهنمای راه‌اندازی Pilot — ResearchHub
+
+این سند مخصوص راه‌اندازی نسخهٔ Pilot برای دانشکده کامپیوتر است — نه توسعهٔ محلی عمومی (برای اون، `README.md` را ببینید).
+
+---
+
+## ۱. Deployment (Vercel)
+
+1. ریپازیتوری را به Vercel وصل کنید (Import Project).
+2. Framework Preset: **Next.js** (خودکار تشخیص داده می‌شود).
+3. **Environment Variables** را در Project Settings → Environment Variables اضافه کنید (بخش ۴ همین سند).
+4. Deploy کنید.
+5. بلافاصله بعد از دیپلوی، سلامت را چک کنید:
+   ```
+   https://<your-domain>/api/health
+   ```
+   باید `{"ok":true}` برگرداند. اگر `ok:false` بود، **قبل از هر کار دیگه** این را رفع کنید — بقیهٔ مراحل (register/login) بدون دیتابیس سالم کار نمی‌کنند.
+
+---
+
+## ۲. Database
+
+- از یک پروژهٔ Neon (یا هر PostgreSQL دیگر) استفاده کنید.
+- **برای Pilot، از یک دیتابیس production جدا از دیتابیس توسعه/تست استفاده کنید** — هرگز روی دیتابیسی که داده‌های واقعی pilot رو داره، `?action=clear` یا `?action=force` نزنید.
+- Schema را با این دستور اعمال کنید (از دستگاه لوکال، با `DATABASE_URL` اشاره‌کننده به دیتابیس production):
+  ```bash
+  npx drizzle-kit push
+  ```
+
+---
+
+## ۳. Seed (فقط برای راه‌اندازی اولیه)
+
+مسیر `/api/seed` **بدون `SEED_SECRET` تنظیم‌شده، همیشه غیرفعال است** (۴۰۴ برمی‌گرداند) — این طراحی عمدی و امن است.
+
+برای seed کردن اولیهٔ محیط Pilot (یک‌بار، قبل از باز کردن به کاربران واقعی):
+
+```bash
+curl "https://<your-domain>/api/seed?secret=<SEED_SECRET>&action=force"
+```
+
+⚠️ **بعد از این‌که کاربران واقعی شروع به استفاده کردند، دیگر هرگز این دستور را نزنید** — `action=force` همهٔ داده‌های موجود (شامل حساب‌های واقعی و پروژه‌های واقعی) را پاک می‌کند.
+
+**توصیهٔ قوی برای بعد از راه‌اندازی اولیهٔ Pilot:** مقدار `SEED_SECRET` را از environment variables حذف یا rotate کنید تا مسیر seed کاملاً و برای همیشه غیرفعال بشه، مگر واقعاً دوباره بهش نیاز داشته باشید.
+
+### حساب‌های تستی (فقط بعد از seed)
+
+| نقش | ایمیل | پسورد |
+|---|---|---|
+| استاد | `ali.mohammadi@university.edu` | `professor123` |
+| استاد | `sara.hosseini@university.edu` | `professor123` |
+| دانشجو | `reza.karimi@student.edu` | `student123` |
+| دانشجو | `maryam.rezaei@student.edu` | `student123` |
+| دانشجو | `amir.mousavi@student.edu` | `student123` |
+
+⚠️ این حساب‌ها فقط برای دمو/تست داخلی‌اند. **قبل از باز کردن Pilot به دانشجویان واقعی، این حساب‌ها را حذف کنید** یا پسوردشان را عوض کنید، وگرنه هرکسی با این ایمیل/پسورد شناخته‌شده می‌تواند وارد بشه.
+
+---
+
+## ۴. Environment Variables لازم روی Vercel
+
+| متغیر | توضیح |
+|---|---|
+| `DATABASE_URL` | آدرس اتصال PostgreSQL (با `sslmode=require`) |
+| `JWT_SECRET` | یک رشتهٔ تصادفی و طولانی (`openssl rand -hex 32`) — **حتماً در production یک مقدار جداگانه از dev داشته باشید** |
+| `SEED_SECRET` | برای راه‌اندازی اولیه لازم است؛ بعد از seed اولیه پیشنهاد می‌شود حذف/rotate شود |
+| `NODE_ENV` | Vercel خودش `production` تنظیم می‌کند؛ نیازی به دستکاری دستی نیست |
+
+هیچ‌کدام از این مقادیر نباید در کد یا فایل‌های commit‌شده (مثل `drizzle.config.json`) قرار بگیرند.
+
+---
+
+## ۵. Reset Procedure (روال بازنشانی)
+
+اگر لازم شد Pilot را کاملاً از نو راه‌اندازی کنید:
+
+1. یک backup از دیتابیس فعلی بگیرید (بخش ۶).
+2. `curl "https://<domain>/api/seed?secret=<SEED_SECRET>&action=clear"` — همهٔ داده‌ها پاک می‌شود.
+3. در صورت نیاز به داده‌های نمونه: `&action=force` را برای seed دوباره بزنید؛ در غیر این صورت دیتابیس خالی می‌ماند و کاربران واقعی از صفر ثبت‌نام می‌کنند.
+
+---
+
+## ۶. Backup
+
+قبل از شروع Pilot و به‌صورت دوره‌ای در طول آن:
+
+- اگر از Neon استفاده می‌کنید، از قابلیت **Branching / Point-in-time Restore** خود Neon برای گرفتن یک snapshot قبل از هر تغییر بزرگ استفاده کنید.
+- یک Git tag پایدار برای نسخه‌ای که deploy کرده‌اید بگذارید:
+  ```bash
+  git tag pilot-v1
+  git push origin pilot-v1
+  ```
+
+---
+
+## ۷. چک‌لیست قبل از باز کردن Pilot به کاربران واقعی
+
+- [ ] `/api/health` → `{"ok":true}`
+- [ ] یک ثبت‌نام و ورود واقعی (نه دمو) تست شده
+- [ ] یک چرخهٔ کامل (ساخت پروژه → درخواست → تأیید → چت) تست شده
+- [ ] حساب‌های دمو حذف یا پسوردشان تغییر کرده
+- [ ] `SEED_SECRET` بعد از seed اولیه حذف/rotate شده
+- [ ] `DATABASE_URL` تولید (production) از توسعه/تست جداست
+- [ ] یک backup/snapshot گرفته شده

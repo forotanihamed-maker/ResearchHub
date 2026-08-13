@@ -75,6 +75,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (status === "approved") {
         await db.transaction(async (tx) => {
+          // Lock the project row so concurrent approval requests for the
+          // same project serialize instead of racing on the member-count
+          // check below (without this, two simultaneous approvals could
+          // both read "4 of 5 members" and both insert, overshooting
+          // maxMembers).
+          const [lockedProject] = await tx
+            .select()
+            .from(projects)
+            .where(eq(projects.id, projectId))
+            .for("update");
+
           const members = await tx
             .select({
               userId: projectMembers.userId,
@@ -86,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             (member) => member.userId === app.studentId
           );
 
-          if (!alreadyMember && members.length >= project.maxMembers) {
+          if (!alreadyMember && members.length >= lockedProject.maxMembers) {
             throw new Error("PROJECT_FULL");
           }
           await tx
@@ -114,7 +125,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             });
           }
 
-          if (project.status === "open") {
+          if (lockedProject.status === "open") {
             await tx
               .update(projects)
               .set({
