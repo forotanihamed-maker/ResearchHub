@@ -1,3 +1,4 @@
+/*src\db\shema.ts */
 import {
   pgTable,
   serial,

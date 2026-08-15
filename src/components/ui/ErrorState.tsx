@@ -1,3 +1,4 @@
+/*src\components\ui\ErrorState.tsx */
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";

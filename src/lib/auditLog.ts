@@ -1,3 +1,4 @@
+/*src\lib\auditLog.ts  */
 /**
  * Lightweight audit logging.
  *

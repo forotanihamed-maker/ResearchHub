@@ -1,3 +1,4 @@
+/*src\app\dashboard\masssages\page.tsx */
 "use client";
 
 import { useState } from "react";
@@ -21,14 +22,16 @@ interface ProjectMembership {
 
 export default function MessagesPage() {
   const { user } = useAuth();
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
+    null
+  );
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-projects-member"],
     queryFn: async () => {
       const res = await fetch("/api/projects");
       if (!res.ok) throw new Error("Failed");
-      const data = await res.json() as { projects: any[] };
+      const data = (await res.json()) as { projects: any[] };
       // Filter projects where user is a member
       return data.projects.filter((p: any) => {
         // We'll get membership info from a separate call or include isMember
@@ -44,7 +47,7 @@ export default function MessagesPage() {
       // Get all projects and filter those we can chat in
       const res = await fetch("/api/projects");
       if (!res.ok) throw new Error("Failed");
-      const json = await res.json() as { projects: any[] };
+      const json = (await res.json()) as { projects: any[] };
       // Try to get messages for each - filter to ones we have access to
       const projects = json.projects;
       const accessible = [];
@@ -77,7 +80,10 @@ export default function MessagesPage() {
         {memberLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-16 bg-slate-100 animate-pulse rounded-xl" />
+              <div
+                key={i}
+                className="h-16 bg-slate-100 animate-pulse rounded-xl"
+              />
             ))}
           </div>
         ) : projects.length === 0 ? (
@@ -91,9 +97,7 @@ export default function MessagesPage() {
             {/* Project list */}
             <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
               <div className="px-4 py-3 border-b border-slate-100">
-                <p className="font-semibold text-slate-900 text-sm">
-                  Projects
-                </p>
+                <p className="font-semibold text-slate-900 text-sm">Projects</p>
               </div>
               <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                 {projects.map((project) => (
@@ -111,7 +115,9 @@ export default function MessagesPage() {
                       {project.title}
                     </p>
                     <div className="flex items-center gap-2">
-                      <Badge className={`${statusColor(project.status)} text-xs`}>
+                      <Badge
+                        className={`${statusColor(project.status)} text-xs`}
+                      >
                         {statusLabel(project.status)}
                       </Badge>
                     </div>
@@ -127,8 +133,13 @@ export default function MessagesPage() {
               ) : (
                 <div className="bg-white rounded-xl border border-slate-200 h-full flex items-center justify-center">
                   <div className="text-center text-slate-400">
-                    <MessageSquare size={40} className="mx-auto mb-3 text-slate-200" />
-                    <p className="text-sm font-medium">Select a project to chat</p>
+                    <MessageSquare
+                      size={40}
+                      className="mx-auto mb-3 text-slate-200"
+                    />
+                    <p className="text-sm font-medium">
+                      Select a project to chat
+                    </p>
                     <p className="text-xs">Choose from your active projects</p>
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+/*src\components\ui\badge.tsx */
 import { cn } from "@/lib/utils";
 
 interface BadgeProps {
@@ -6,7 +7,11 @@ interface BadgeProps {
   variant?: "default" | "outline";
 }
 
-export function Badge({ children, className, variant = "default" }: BadgeProps) {
+export function Badge({
+  children,
+  className,
+  variant = "default",
+}: BadgeProps) {
   return (
     <span
       className={cn(

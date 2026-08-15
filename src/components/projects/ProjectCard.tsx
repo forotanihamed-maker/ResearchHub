@@ -1,3 +1,4 @@
+/*src\components\projects\projectcard.tsx */
 "use client";
 
 import Link from "next/link";

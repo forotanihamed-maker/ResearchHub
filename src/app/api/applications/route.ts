@@ -1,4 +1,5 @@
 //src/app/api/applications/route.ts
+/*src\app\api\applications/route.ts*/
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { applications, projects, users } from "@/db/schema";

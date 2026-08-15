@@ -1,3 +1,4 @@
+/*src\app\api\projects\[id]\massages\route.ts */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { chatMessages, projectMembers, users, projects } from "@/db/schema";

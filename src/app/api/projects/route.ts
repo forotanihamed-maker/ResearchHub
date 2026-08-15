@@ -1,3 +1,4 @@
+/*src\app\api\projects\route.ts */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { projects, users, applications, projectMembers } from "@/db/schema";

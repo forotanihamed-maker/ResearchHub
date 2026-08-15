@@ -1,3 +1,4 @@
+/*src\lib\auth.ts  */
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";

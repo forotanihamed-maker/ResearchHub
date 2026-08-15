@@ -1,3 +1,4 @@
+/*src\components\layout\topbar.tsx */
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";

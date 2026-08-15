@@ -1,3 +1,4 @@
+/*src\components\projects\chatpanel.tsx */
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -54,23 +55,29 @@ export function ChatPanel({ projectId }: { projectId: number }) {
     onMutate: async (content) => {
       // Optimistic update
       await queryClient.cancelQueries({ queryKey: ["messages", projectId] });
-      const prev = queryClient.getQueryData<{ messages: Message[] }>(["messages", projectId]);
-      queryClient.setQueryData(["messages", projectId], (old: { messages: Message[] } | undefined) => ({
-        messages: [
-          ...(old?.messages ?? []),
-          {
-            id: Date.now(),
-            projectId,
-            senderId: user?.id ?? 0,
-            content,
-            type: "text",
-            createdAt: new Date().toISOString(),
-            senderName: user?.name ?? "You",
-            senderAvatar: user?.avatar,
-            senderRole: user?.role ?? "student",
-          },
-        ],
-      }));
+      const prev = queryClient.getQueryData<{ messages: Message[] }>([
+        "messages",
+        projectId,
+      ]);
+      queryClient.setQueryData(
+        ["messages", projectId],
+        (old: { messages: Message[] } | undefined) => ({
+          messages: [
+            ...(old?.messages ?? []),
+            {
+              id: Date.now(),
+              projectId,
+              senderId: user?.id ?? 0,
+              content,
+              type: "text",
+              createdAt: new Date().toISOString(),
+              senderName: user?.name ?? "You",
+              senderAvatar: user?.avatar,
+              senderRole: user?.role ?? "student",
+            },
+          ],
+        })
+      );
       setMessage("");
       return { prev };
     },
@@ -123,16 +130,12 @@ export function ChatPanel({ projectId }: { projectId: number }) {
           messages.map((msg, idx) => {
             const isOwn = msg.senderId === user?.id;
             const prevMsg = messages[idx - 1];
-            const showAvatar =
-              !prevMsg || prevMsg.senderId !== msg.senderId;
+            const showAvatar = !prevMsg || prevMsg.senderId !== msg.senderId;
 
             return (
               <div
                 key={msg.id}
-                className={cn(
-                  "flex gap-3",
-                  isOwn && "flex-row-reverse"
-                )}
+                className={cn("flex gap-3", isOwn && "flex-row-reverse")}
               >
                 {!isOwn && (
                   <div className="flex-shrink-0 w-8">

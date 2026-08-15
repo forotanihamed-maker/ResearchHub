@@ -1,3 +1,4 @@
+/*src\app\api\health\route.ts */
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 

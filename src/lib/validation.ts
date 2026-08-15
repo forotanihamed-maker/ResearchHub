@@ -1,3 +1,4 @@
+/*src\lib\validation.ts  */
 export const PROJECT_STATUSES = ["open", "in_progress", "completed"] as const;
 export type ProjectStatus = typeof PROJECT_STATUSES[number];
 

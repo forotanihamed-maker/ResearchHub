@@ -1,3 +1,4 @@
+/*src\components\ui\avatar */
 import { cn, getInitials } from "@/lib/utils";
 
 interface AvatarProps {

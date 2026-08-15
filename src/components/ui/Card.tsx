@@ -1,3 +1,4 @@
+/*src\components\ui\card.tsx */
 import { cn } from "@/lib/utils";
 
 interface CardProps {
@@ -12,7 +13,8 @@ export function Card({ children, className, hover, onClick }: CardProps) {
     <div
       className={cn(
         "bg-white rounded-xl border border-slate-200 shadow-sm",
-        hover && "cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all duration-200",
+        hover &&
+          "cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all duration-200",
         className
       )}
       onClick={onClick}
@@ -54,7 +56,12 @@ export function CardFooter({
   className?: string;
 }) {
   return (
-    <div className={cn("px-5 py-3 border-t border-slate-100 bg-slate-50/50 rounded-b-xl", className)}>
+    <div
+      className={cn(
+        "px-5 py-3 border-t border-slate-100 bg-slate-50/50 rounded-b-xl",
+        className
+      )}
+    >
       {children}
     </div>
   );

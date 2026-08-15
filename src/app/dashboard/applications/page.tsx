@@ -1,3 +1,4 @@
+/*src\app\dashboard\applications\page.tsx */
 "use client";
 
 import { useState } from "react";
@@ -7,7 +8,12 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { statusColor, statusLabel, formatTimeAgo, formatDate } from "@/lib/utils";
+import {
+  statusColor,
+  statusLabel,
+  formatTimeAgo,
+  formatDate,
+} from "@/lib/utils";
 import {
   FileText,
   Clock,
@@ -92,7 +98,9 @@ export default function ApplicationsPage() {
 
   const apps = data?.applications ?? [];
   const filtered =
-    statusFilter === "all" ? apps : apps.filter((a) => a.status === statusFilter);
+    statusFilter === "all"
+      ? apps
+      : apps.filter((a) => a.status === statusFilter);
 
   return (
     <div>
@@ -220,9 +228,7 @@ export default function ApplicationsPage() {
                         <div className="flex items-center gap-3 text-xs text-slate-400">
                           <span>Applied {formatTimeAgo(app.createdAt)}</span>
                           {app.status !== "pending" && (
-                            <span>
-                              Updated {formatTimeAgo(app.updatedAt)}
-                            </span>
+                            <span>Updated {formatTimeAgo(app.updatedAt)}</span>
                           )}
                         </div>
 
