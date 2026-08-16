@@ -98,12 +98,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     const isMember = members.some((m) => m.id === authUser.userId);
+    const studentMemberCount = members.filter(
+      (m) => m.id !== project.professorId
+    ).length;
 
     return NextResponse.json({
       project: {
         ...project,
         members,
-        memberCount: members.length,
+        memberCount: studentMemberCount,
         myApplication,
         isMember,
       },

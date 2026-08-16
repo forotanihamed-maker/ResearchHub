@@ -97,8 +97,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           const alreadyMember = members.some(
             (member) => member.userId === app.studentId
           );
+          const studentMemberCount = members.filter(
+            (member) => member.userId !== lockedProject.professorId
+          ).length;
 
-          if (!alreadyMember && members.length >= lockedProject.maxMembers) {
+          if (
+            !alreadyMember &&
+            studentMemberCount >= lockedProject.maxMembers
+          ) {
             throw new Error("PROJECT_FULL");
           }
           await tx

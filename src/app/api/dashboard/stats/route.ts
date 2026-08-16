@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { projects, applications, projectMembers, users } from "@/db/schema";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 export async function GET() {
   try {
@@ -64,31 +64,30 @@ export async function GET() {
         const [appCount] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(applications)
-          .where(
-            sql`${applications.projectId} = ANY(${sql.raw(
-              `ARRAY[${myProjectIds.join(",")}]::int[]`
-            )})`
-          );
+          .where(inArray(applications.projectId, myProjectIds));
 
         const [pendingCount] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(applications)
           .where(
             and(
-              sql`${applications.projectId} = ANY(${sql.raw(
-                `ARRAY[${myProjectIds.join(",")}]::int[]`
-              )})`,
+              inArray(applications.projectId, myProjectIds),
               eq(applications.status, "pending")
             )
           );
 
+        // Excludes the professor's own auto-membership row in each of
+        // their projects — this stat should mean "students you've
+        // recruited across your projects", not "students + yourself
+        // counted once per project you own".
         const [memberCount] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(projectMembers)
           .where(
-            sql`${projectMembers.projectId} = ANY(${sql.raw(
-              `ARRAY[${myProjectIds.join(",")}]::int[]`
-            )})`
+            and(
+              inArray(projectMembers.projectId, myProjectIds),
+              ne(projectMembers.userId, authUser.userId)
+            )
           );
 
         totalApplications = appCount?.count ?? 0;

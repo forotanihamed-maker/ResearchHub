@@ -1,7 +1,7 @@
 /*src\app\dashboard\masssages\page.tsx */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
@@ -39,9 +39,11 @@ export default function MessagesPage() {
 
   const projects = memberProjects ?? [];
 
-  if (!selectedProjectId && projects.length > 0) {
-    // Auto-select first
-  }
+  useEffect(() => {
+    if (!selectedProjectId && projects.length > 0) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
 
   const selected = projects.find((p) => p.id === selectedProjectId);
 

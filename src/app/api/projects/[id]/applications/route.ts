@@ -136,6 +136,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         id: projects.id,
         status: projects.status,
         maxMembers: projects.maxMembers,
+        professorId: projects.professorId,
       })
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.status, "open")));
@@ -184,7 +185,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Already a member" }, { status: 409 });
     }
 
-    // Check current project member count
+    // Check current project member count (excluding the professor's own
+    // auto-membership row — maxMembers is meant to cap recruited students,
+    // not include the project owner).
     const members = await db
       .select({
         userId: projectMembers.userId,
@@ -192,7 +195,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       .from(projectMembers)
       .where(eq(projectMembers.projectId, projectId));
 
-    if (members.length >= project.maxMembers) {
+    const studentMemberCount = members.filter(
+      (m) => m.userId !== project.professorId
+    ).length;
+
+    if (studentMemberCount >= project.maxMembers) {
       return NextResponse.json({ error: "Project is full" }, { status: 409 });
     }
 
