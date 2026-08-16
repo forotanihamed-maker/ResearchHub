@@ -54,7 +54,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       })
       .from(projects)
       .innerJoin(users, eq(projects.professorId, users.id))
-      .where(eq(projects.id, projectId));
+      .where(
+        authUser.role === "professor"
+          ? and(
+              eq(projects.id, projectId),
+              eq(projects.professorId, authUser.userId)
+            )
+          : eq(projects.id, projectId)
+      );
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });

@@ -37,14 +37,10 @@ const STATUS_FILTERS = [
 export default function ProjectsPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["projects", statusFilter],
+    queryKey: ["projects", "browse-open"],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`/api/projects?${params}`);
+      const res = await fetch(`/api/projects?status=open`);
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<{ projects: Project[] }>;
     },
@@ -83,24 +79,6 @@ export default function ProjectsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
           />
-        </div>
-
-        {/* Status Tabs */}
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
-              className={cn(
-                "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-150",
-                statusFilter === f.value
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
         </div>
 
         {/* Results count */}

@@ -30,7 +30,10 @@ export async function GET(req: NextRequest) {
     // Build where conditions
     const conditions = [];
 
-    if (myProjects === "true" && authUser.role === "professor") {
+    // Professors only browse their own projects. Students browse the
+    // student-facing project catalog. Keep this restriction server-side
+    // so hiding the navigation item is not the only protection.
+    if (authUser.role === "professor") {
       conditions.push(eq(projects.professorId, authUser.userId));
     }
 

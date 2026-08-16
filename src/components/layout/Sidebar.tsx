@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
     label: "Browse Projects",
     href: "/dashboard/projects",
     icon: FolderKanban,
+    roles: ["student"],
   },
   {
     label: "My Projects",

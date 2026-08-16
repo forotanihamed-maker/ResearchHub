@@ -29,6 +29,7 @@ import {
   ArrowLeft,
   Send,
   UserCheck,
+  CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { ChatPanel } from "@/components/projects/ChatPanel";
@@ -107,6 +108,50 @@ export default function ProjectDetailPage({
       queryClient.invalidateQueries({ queryKey: ["my-applications"] });
       setApplyModal(false);
       setApplyMessage("");
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to complete project");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["my-projects"] });
+    },
+  });
+
+  const closeApplicationsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "in_progress" }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to close applications");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["my-projects"] });
     },
   });
 
@@ -223,6 +268,52 @@ export default function ProjectDetailPage({
                   <Button onClick={() => setApplyModal(true)}>
                     <Send size={16} /> Apply Now
                   </Button>
+                )}
+                {isOwner && project.status === "open" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Close applications for this project? The project will remain in progress and new applications will no longer be accepted."
+                        )
+                      ) {
+                        closeApplicationsMutation.mutate();
+                      }
+                    }}
+                    loading={closeApplicationsMutation.isPending}
+                    disabled={closeApplicationsMutation.isPending}
+                  >
+                    <Clock size={16} /> Close Applications
+                  </Button>
+                )}
+                {closeApplicationsMutation.isError && (
+                  <p className="w-full text-sm text-red-600">
+                    {closeApplicationsMutation.error?.message}
+                  </p>
+                )}
+                {isOwner && project.status !== "completed" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Mark this project as completed? New applications will no longer be accepted."
+                        )
+                      ) {
+                        completeMutation.mutate();
+                      }
+                    }}
+                    loading={completeMutation.isPending}
+                    disabled={completeMutation.isPending}
+                  >
+                    <CheckCircle size={16} /> Mark as Completed
+                  </Button>
+                )}
+                {completeMutation.isError && (
+                  <p className="w-full text-sm text-red-600">
+                    {completeMutation.error?.message}
+                  </p>
                 )}
                 {myApp && myApp.status === "pending" && (
                   <div className="flex items-center gap-2">

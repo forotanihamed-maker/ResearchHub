@@ -26,38 +26,14 @@ export default function MessagesPage() {
     null
   );
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["my-projects-member"],
-    queryFn: async () => {
-      const res = await fetch("/api/projects");
-      if (!res.ok) throw new Error("Failed");
-      const data = (await res.json()) as { projects: any[] };
-      // Filter projects where user is a member
-      return data.projects.filter((p: any) => {
-        // We'll get membership info from a separate call or include isMember
-        return true;
-      });
-    },
-  });
-
-  // Better: get projects where user is member
   const { data: memberProjects, isLoading: memberLoading } = useQuery({
-    queryKey: ["member-projects"],
+    queryKey: ["member-projects", user?.id],
+    enabled: !!user,
     queryFn: async () => {
-      // Get all projects and filter those we can chat in
-      const res = await fetch("/api/projects");
-      if (!res.ok) throw new Error("Failed");
-      const json = (await res.json()) as { projects: any[] };
-      // Try to get messages for each - filter to ones we have access to
-      const projects = json.projects;
-      const accessible = [];
-      for (const p of projects) {
-        try {
-          const msgRes = await fetch(`/api/projects/${p.id}/messages`);
-          if (msgRes.ok) accessible.push(p);
-        } catch {}
-      }
-      return accessible as ProjectMembership[];
+      const res = await fetch("/api/projects?chat=true");
+      if (!res.ok) throw new Error("Failed to load team projects");
+      const json = (await res.json()) as { projects: ProjectMembership[] };
+      return json.projects;
     },
   });
 
