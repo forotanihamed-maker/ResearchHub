@@ -13,7 +13,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: "professor" | "student";
+  role: "professor" | "student" | "admin";
   avatar?: string | null;
   bio?: string | null;
   department?: string | null;

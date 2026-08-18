@@ -25,7 +25,8 @@ export type AuditEvent =
   | "seed_executed"
   | "project_deleted"
   | "application_approved"
-  | "application_rejected";
+  | "application_rejected"
+  | "professor_created";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;

@@ -21,7 +21,7 @@ export const departmentEnum = pgEnum("department", [
   "امنیت اطلاعات",
   "علوم داده",
 ]);
-export const roleEnum = pgEnum("role", ["professor", "student"]);
+export const roleEnum = pgEnum("role", ["professor", "student", "admin"]);
 export const projectStatusEnum = pgEnum("project_status", [
   "open",
   "in_progress",

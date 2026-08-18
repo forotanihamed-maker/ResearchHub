@@ -20,12 +20,13 @@ import {
   BookOpen,
   X,
 } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  roles?: ("professor" | "student")[];
+  roles?: ("professor" | "student" | "admin")[];
 }
 
 const navItems: NavItem[] = [
@@ -61,6 +62,12 @@ const navItems: NavItem[] = [
     label: "Profile",
     href: "/dashboard/profile",
     icon: Settings,
+  },
+  {
+    label: "Admin Panel",
+    href: "/dashboard/admin",
+    icon: ShieldCheck,
+    roles: ["admin"],
   },
 ];
 

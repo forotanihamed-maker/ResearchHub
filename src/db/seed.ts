@@ -9,6 +9,7 @@ async function seed() {
 
   const professorPassword = await bcrypt.hash("professor123", 10);
   const studentPassword = await bcrypt.hash("student123", 10);
+  const adminPassword = await bcrypt.hash("admin123", 10);
 
   console.log("👨‍🏫 ایجاد اساتید...");
   await db.insert(users).values([
@@ -33,6 +34,21 @@ async function seed() {
       bio: "متخصص یادگیری ماشین و هوش مصنوعی",
       interests: ["Machine Learning", "Computer Vision"],
       programmingLanguages: ["Python", "C++"],
+    },
+  ]);
+  console.log("👨‍💼 ایجاد Admin...");
+
+  await db.insert(users).values([
+    {
+      name: "مدیر سامانه",
+      email: "admin@researchhub.ir",
+      password: adminPassword,
+      role: "admin",
+      department: "مهندسی نرم‌افزار",
+      university: "دانشگاه علم و صنعت ایران",
+      bio: "مدیر اولیه سامانه ResearchHub",
+      interests: [],
+      programmingLanguages: [],
     },
   ]);
 
@@ -78,6 +94,7 @@ async function seed() {
   console.log("🔐 اطلاعات ورود:");
   console.log("👨‍🏫 ali.mohammadi@university.edu / professor123");
   console.log("👨‍🎓 reza.karimi@student.edu / student123");
+  console.log("👨‍💼 admin@researchhub.ir / admin123");
 
   process.exit(0);
 }

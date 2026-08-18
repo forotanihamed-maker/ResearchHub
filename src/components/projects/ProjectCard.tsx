@@ -35,7 +35,7 @@ interface ProjectCardProps {
     pendingApplications?: number;
   };
   showActions?: boolean;
-  role?: "professor" | "student";
+  role?: "professor" | "student" | "admin";
 }
 
 export function ProjectCard({
