@@ -57,11 +57,13 @@ const navItems: NavItem[] = [
     label: "Messages",
     href: "/dashboard/messages",
     icon: MessageSquare,
+    roles: ["professor"],
   },
   {
     label: "Profile",
     href: "/dashboard/profile",
     icon: Settings,
+    roles: ["professor", "student"],
   },
   {
     label: "Admin Panel",

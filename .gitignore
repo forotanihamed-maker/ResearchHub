@@ -14,3 +14,5 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
+*.zip
+*gitignore

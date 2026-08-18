@@ -26,6 +26,12 @@ const DEMO_ACCOUNTS = [
     role: "Professor",
   },
   {
+    label: "🛡️ Admin - ResearchHub Manager",
+    email: "admin@researchhub.ir",
+    password: "admin123",
+    role: "Admin",
+  },
+  {
     label: "🧑‍🎓 Student - Reza Karimi",
     email: "reza.karimi@student.edu",
     password: "student123",

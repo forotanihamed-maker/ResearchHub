@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Users, GraduationCap, FlaskConical } from "lucide-react";
+import AdminStats from "@/app/admin/AdminStats";
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -16,6 +17,10 @@ export default function AdminPage() {
   return (
     <div>
       <TopBar title="Admin Panel" subtitle="ResearchHub Management" />
+
+      <div className="p-6">
+        <AdminStats />
+      </div>
 
       <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-5">
         <Card>
