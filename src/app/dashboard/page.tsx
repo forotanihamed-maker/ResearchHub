@@ -1,7 +1,9 @@
 /*src\app\dashboard\page.tsx */
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -64,6 +66,11 @@ interface Application {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user?.role === "admin") router.replace("/dashboard/admin");
+  }, [user, router]);
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -72,6 +79,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error("Failed to load stats");
       return res.json() as Promise<{ stats: Stats }>;
     },
+    enabled: !!user && user.role !== "admin",
   });
 
   const { data: projectsData, isLoading: projectsLoading } = useQuery({
@@ -85,7 +93,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error("Failed to load projects");
       return res.json() as Promise<{ projects: Project[] }>;
     },
-    enabled: !!user,
+    enabled: !!user && user.role !== "admin",
   });
 
   const { data: appsData, isLoading: appsLoading } = useQuery({
@@ -163,6 +171,8 @@ export default function DashboardPage() {
       desc: "Active memberships",
     },
   ];
+
+  if (user?.role === "admin") return null;
 
   const displayStats =
     user?.role === "professor" ? professorStats : studentStats;

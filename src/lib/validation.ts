@@ -237,3 +237,15 @@ export function validateInterests(value: unknown): string[] | null {
 
   return [...new Set(cleaned)];
 }
+
+export const PROFESSOR_STATUSES = ["pending", "approved", "rejected"] as const;
+export type ProfessorStatus = typeof PROFESSOR_STATUSES[number];
+
+export function isValidProfessorStatus(
+  value: unknown
+): value is ProfessorStatus {
+  return (
+    typeof value === "string" &&
+    (PROFESSOR_STATUSES as readonly string[]).includes(value)
+  );
+}

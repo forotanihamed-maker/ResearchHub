@@ -21,6 +21,12 @@ export async function GET(req: NextRequest) {
     if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (authUser.role === "admin") {
+      return NextResponse.json(
+        { error: "Admin access is limited to the admin panel" },
+        { status: 403 }
+      );
+    }
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");

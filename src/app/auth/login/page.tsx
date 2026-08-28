@@ -10,7 +10,10 @@ import Link from "next/link";
 import { FlaskConical, Eye, EyeOff } from "lucide-react";
 
 // ============================================================
-// 📌 حساب‌های تستی جدید (هماهنگ با seed)
+// 📌 حساب‌های تستی — این لیست باید همیشه دقیقاً با ایمیل‌های
+// موجود در دیتابیس یکی باشد. برای بررسی سریع می‌توانید از
+// GET /api/seed?secret=...&action=list استفاده کنید (فقط خواندنی،
+// چیزی را تغییر نمی‌دهد).
 // ============================================================
 const DEMO_ACCOUNTS = [
   {
@@ -20,8 +23,8 @@ const DEMO_ACCOUNTS = [
     role: "Professor",
   },
   {
-    label: "👩‍🏫 Professor - Dr. Sara Hosseini",
-    email: "sara.hosseini@university.edu",
+    label: "👩‍🏫 Professor - Dr. Sara Ahmadi",
+    email: "sara.ahmadi@university.edu",
     password: "professor123",
     role: "Professor",
   },
@@ -38,14 +41,14 @@ const DEMO_ACCOUNTS = [
     role: "Student",
   },
   {
-    label: "👩‍🎓 Student - Maryam Rezaei",
-    email: "maryam.rezaei@student.edu",
+    label: "👩‍🎓 Student - Maryam Hosseini",
+    email: "maryam.hosseini@student.edu",
     password: "student123",
     role: "Student",
   },
   {
-    label: "🧑‍🎓 Student - Amir Mousavi",
-    email: "amir.mousavi@student.edu",
+    label: "🧑‍🎓 Student - Amir Rezaei",
+    email: "amir.rezaei@student.edu",
     password: "student123",
     role: "Student",
   },
@@ -66,8 +69,8 @@ export default function LoginPage() {
     try {
       await login(form.email, form.password);
       router.push("/dashboard");
-    } catch {
-      setError("Invalid email or password");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }

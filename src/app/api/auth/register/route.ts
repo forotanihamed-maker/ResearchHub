@@ -30,7 +30,9 @@ export async function POST(req: NextRequest) {
       programmingLanguages,
     } = body;
 
-    const role = "student";
+    const requestedRole = body.role;
+    const role: "student" | "professor" =
+      requestedRole === "professor" ? "professor" : "student";
 
     const cleanName = sanitizeName(name);
     if (!cleanName) {
@@ -114,6 +116,7 @@ export async function POST(req: NextRequest) {
         email: cleanEmail,
         password: hashed,
         role,
+        professorStatus: role === "professor" ? "pending" : "approved",
         department,
         university: universityResult.value,
         bio: bioResult.value,
@@ -125,6 +128,7 @@ export async function POST(req: NextRequest) {
         name: users.name,
         email: users.email,
         role: users.role,
+        professorStatus: users.professorStatus,
         department: users.department,
         university: users.university,
         bio: users.bio,
@@ -133,14 +137,26 @@ export async function POST(req: NextRequest) {
         createdAt: users.createdAt,
       });
 
+    auditLog("register_success", { userId: user.id, email: user.email });
+
+    if (role === "professor") {
+      return NextResponse.json(
+        {
+          user,
+          pendingApproval: true,
+          message:
+            "Professor account created. Wait for admin approval before signing in.",
+        },
+        { status: 201 }
+      );
+    }
+
     const token = signToken({
       userId: user.id,
       email: user.email,
       role: user.role,
       name: user.name,
     });
-
-    auditLog("register_success", { userId: user.id, email: user.email });
 
     const response = NextResponse.json({ user, token }, { status: 201 });
     response.cookies.set("auth_token", token, {

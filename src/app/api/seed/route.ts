@@ -7,6 +7,8 @@ import {
   applications,
   projectMembers,
   chatMessages,
+  adminDepartments,
+  directMessages,
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth";
 import { auditLog } from "@/lib/auditLog";
@@ -49,13 +51,24 @@ const DEMO_USERS: {
   name: string;
   email: string;
   password: string;
-  role: "professor" | "student";
+  role: "professor" | "student" | "admin";
   department: Department;
   university: string;
   bio: string;
   interests: string[];
   programmingLanguages: string[];
 }[] = [
+  {
+    name: "مدیر سامانه",
+    email: "admin@researchhub.ir",
+    password: "admin123",
+    role: "admin" as const,
+    department: "مهندسی نرم‌افزار",
+    university: "دانشگاه علم و صنعت ایران",
+    bio: "مدیر سامانه ResearchHub",
+    interests: [],
+    programmingLanguages: [],
+  },
   {
     name: "دکتر علی محمدی",
     email: "ali.mohammadi@university.edu",
@@ -68,8 +81,8 @@ const DEMO_USERS: {
     programmingLanguages: ["Python", "C++"],
   },
   {
-    name: "دکتر سارا حسینی",
-    email: "sara.hosseini@university.edu",
+    name: "دکتر سارا احمدی",
+    email: "sara.ahmadi@university.edu",
     password: "professor123",
     role: "professor" as const,
     department: "مهندسی نرم‌افزار",
@@ -90,8 +103,8 @@ const DEMO_USERS: {
     programmingLanguages: ["Python"],
   },
   {
-    name: "مریم رضایی",
-    email: "maryam.rezaei@student.edu",
+    name: "مریم حسینی",
+    email: "maryam.hosseini@student.edu",
     password: "student123",
     role: "student" as const,
     department: "مهندسی نرم‌افزار",
@@ -101,8 +114,8 @@ const DEMO_USERS: {
     programmingLanguages: ["TypeScript", "JavaScript"],
   },
   {
-    name: "امیرحسین موسوی",
-    email: "amir.mousavi@student.edu",
+    name: "امیر رضایی",
+    email: "amir.rezaei@student.edu",
     password: "student123",
     role: "student" as const,
     department: "شبکه‌های کامپیوتری",
@@ -174,6 +187,8 @@ async function runFullSeed() {
         email: userData.email,
         password: hashedPassword,
         role: userData.role,
+        professorStatus:
+          userData.role === "professor" ? "approved" : "approved",
         department: userData.department,
         university: userData.university,
         bio: userData.bio,
@@ -182,6 +197,21 @@ async function runFullSeed() {
       })
       .returning({ id: users.id });
     userMap[userData.email] = user.id;
+  }
+
+  const adminId = userMap["admin@researchhub.ir"];
+  if (adminId) {
+    const departments: Department[] = [
+      "مهندسی نرم‌افزار",
+      "هوش مصنوعی",
+      "شبکه‌های کامپیوتری",
+      "معماری سیستم‌های کامپیوتری",
+      "امنیت اطلاعات",
+      "علوم داده",
+    ];
+    await db
+      .insert(adminDepartments)
+      .values(departments.map((department) => ({ adminId, department })));
   }
 
   // 2. ساخت پروژه‌ها (همه متعلق به دکتر علی محمدی)
@@ -211,8 +241,8 @@ async function runFullSeed() {
 
   // 3. درخواست‌های نمونه (pending / approved / rejected)
   const student1Id = userMap["reza.karimi@student.edu"];
-  const student2Id = userMap["maryam.rezaei@student.edu"];
-  const student3Id = userMap["amir.mousavi@student.edu"];
+  const student2Id = userMap["maryam.hosseini@student.edu"];
+  const student3Id = userMap["amir.rezaei@student.edu"];
 
   const faceProjectId = projectMap["سیستم تشخیص چهره با یادگیری عمیق"];
   const platformProjectId = projectMap["پلتفرم مدیریت پروژه‌های دانشجویی"];
@@ -312,6 +342,8 @@ async function runFullSeed() {
 
 async function clearAllData() {
   await db.delete(chatMessages);
+  await db.delete(directMessages);
+  await db.delete(adminDepartments);
   await db.delete(projectMembers);
   await db.delete(applications);
   await db.delete(projects);
@@ -329,6 +361,23 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
+
+    // Read-only diagnostic: list existing users without touching any data.
+    if (action === "list") {
+      const rows = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          professorStatus: users.professorStatus,
+          department: users.department,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .orderBy(users.id);
+      return NextResponse.json({ count: rows.length, users: rows });
+    }
 
     if (action === "clear") {
       await clearAllData();

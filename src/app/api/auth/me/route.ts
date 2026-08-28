@@ -13,11 +13,23 @@ import {
   type Department,
 } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+
+function jsonResponse(data: Record<string, unknown>, status = 200) {
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
+}
+
 export async function GET() {
   try {
     const authUser = await getAuthUser();
+
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const [user] = await db
@@ -26,6 +38,7 @@ export async function GET() {
         name: users.name,
         email: users.email,
         role: users.role,
+        professorStatus: users.professorStatus,
         avatar: users.avatar,
         bio: users.bio,
         department: users.department,
@@ -35,18 +48,22 @@ export async function GET() {
         createdAt: users.createdAt,
       })
       .from(users)
-      .where(eq(users.id, authUser.userId));
+      .where(eq(users.id, authUser.userId))
+      .limit(1);
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return jsonResponse({ error: "User not found" }, 404);
     }
 
-    return NextResponse.json({ user });
+    return jsonResponse({ user });
   } catch (error) {
-    console.error("Me error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    console.error("GET /api/auth/me error:", error);
+
+    return jsonResponse(
+      {
+        error: "Internal server error",
+      },
+      500
     );
   }
 }
@@ -54,11 +71,19 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const authUser = await getAuthUser();
+
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const body = await req.json();
+    let body: Record<string, unknown>;
+
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON request body" }, 400);
+    }
+
     const {
       name,
       bio,
@@ -68,93 +93,199 @@ export async function PATCH(req: Request) {
       programmingLanguages,
     } = body;
 
-    let cleanName: string | undefined;
+    const updateData: {
+      name?: string;
+      bio?: string | null;
+      department?: Department;
+      university?: string | null;
+      interests?: string[];
+      programmingLanguages?: string[];
+      updatedAt: Date;
+    } = {
+      updatedAt: new Date(),
+    };
+
+    // -----------------------------
+    // Name
+    // -----------------------------
+
     if (name !== undefined) {
-      const n = sanitizeName(name);
-      if (!n) {
-        return NextResponse.json(
-          { error: "Name must be between 2 and 100 characters" },
-          { status: 400 }
+      if (typeof name !== "string") {
+        return jsonResponse({ error: "Name must be a string" }, 400);
+      }
+
+      const cleanName = sanitizeName(name);
+
+      if (!cleanName) {
+        return jsonResponse(
+          {
+            error: "Name must be between 2 and 100 characters",
+          },
+          400
         );
       }
-      cleanName = n;
+
+      updateData.name = cleanName;
     }
 
-    let cleanDepartment: Department | undefined;
+    // -----------------------------
+    // Department
+    // -----------------------------
+
     if (department !== undefined) {
-      if (!isValidDepartment(department)) {
-        return NextResponse.json(
-          { error: "Please select a valid department" },
-          { status: 400 }
+      if (typeof department !== "string" || !isValidDepartment(department)) {
+        return jsonResponse(
+          {
+            error: "Please select a valid department",
+          },
+          400
         );
       }
-      cleanDepartment = department;
+
+      updateData.department = department;
     }
 
-    let cleanBio: string | null | undefined;
+    // -----------------------------
+    // Bio
+    // -----------------------------
+
     if (bio !== undefined) {
+      if (bio !== null && typeof bio !== "string") {
+        return jsonResponse({ error: "Bio must be a string" }, 400);
+      }
+
       const result = parseOptionalText(bio, 1000);
+
       if (!result.ok) {
-        return NextResponse.json({ error: "Bio is too long" }, { status: 400 });
+        return jsonResponse({ error: "Bio is too long" }, 400);
       }
-      cleanBio = result.value;
+
+      updateData.bio = result.value;
     }
 
-    let cleanUniversity: string | null | undefined;
+    // -----------------------------
+    // University
+    // -----------------------------
+
     if (university !== undefined) {
+      if (university !== null && typeof university !== "string") {
+        return jsonResponse(
+          {
+            error: "University must be a string",
+          },
+          400
+        );
+      }
+
       const result = parseOptionalText(university, 255);
+
       if (!result.ok) {
-        return NextResponse.json(
-          { error: "University name is too long" },
-          { status: 400 }
+        return jsonResponse(
+          {
+            error: "University name is too long",
+          },
+          400
         );
       }
-      cleanUniversity = result.value;
+
+      updateData.university = result.value;
     }
 
-    let cleanInterests: string[] | undefined;
+    // -----------------------------
+    // Interests
+    // -----------------------------
+
     if (interests !== undefined) {
+      if (!Array.isArray(interests)) {
+        return jsonResponse(
+          {
+            error: "Interests must be a list of short, valid labels",
+          },
+          400
+        );
+      }
+
       const validated = validateInterests(interests);
+
       if (validated === null) {
-        return NextResponse.json(
-          { error: "Interests must be a list of short, valid labels" },
-          { status: 400 }
+        return jsonResponse(
+          {
+            error: "Interests must be a list of short, valid labels",
+          },
+          400
         );
       }
-      cleanInterests = validated;
+
+      updateData.interests = validated;
     }
 
-    let cleanLanguages: string[] | undefined;
+    // -----------------------------
+    // Programming languages
+    // -----------------------------
+
     if (programmingLanguages !== undefined) {
-      const validated = validateProgrammingLanguages(programmingLanguages);
-      if (validated === null) {
-        return NextResponse.json(
-          { error: "One or more programming languages are invalid" },
-          { status: 400 }
+      if (!Array.isArray(programmingLanguages)) {
+        return jsonResponse(
+          {
+            error: "Programming languages must be a list",
+          },
+          400
         );
       }
-      cleanLanguages = validated;
+
+      const validated = validateProgrammingLanguages(programmingLanguages);
+
+      if (validated === null) {
+        return jsonResponse(
+          {
+            error: "One or more programming languages are invalid",
+          },
+          400
+        );
+      }
+
+      updateData.programmingLanguages = validated;
     }
 
-    await db
-      .update(users)
-      .set({
-        name: cleanName,
-        bio: cleanBio,
-        department: cleanDepartment,
-        university: cleanUniversity,
-        interests: cleanInterests,
-        programmingLanguages: cleanLanguages,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, authUser.userId));
+    // -----------------------------
+    // Update
+    // -----------------------------
 
-    return NextResponse.json({ message: "Updated successfully" });
+    const [updatedUser] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, authUser.userId))
+      .returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        professorStatus: users.professorStatus,
+        avatar: users.avatar,
+        bio: users.bio,
+        department: users.department,
+        university: users.university,
+        interests: users.interests,
+        programmingLanguages: users.programmingLanguages,
+        createdAt: users.createdAt,
+      });
+
+    if (!updatedUser) {
+      return jsonResponse({ error: "User not found" }, 404);
+    }
+
+    return jsonResponse({
+      message: "Updated successfully",
+      user: updatedUser,
+    });
   } catch (error) {
-    console.error("Update me error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+    console.error("PATCH /api/auth/me error:", error);
+
+    return jsonResponse(
+      {
+        error: "Internal server error",
+      },
+      500
     );
   }
 }

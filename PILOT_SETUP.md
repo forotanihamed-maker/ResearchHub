@@ -45,13 +45,13 @@ curl "https://<your-domain>/api/seed?secret=<SEED_SECRET>&action=force"
 
 ### حساب‌های تستی (فقط بعد از seed)
 
-| نقش | ایمیل | پسورد |
-|---|---|---|
-| استاد | `ali.mohammadi@university.edu` | `professor123` |
-| استاد | `sara.hosseini@university.edu` | `professor123` |
-| دانشجو | `reza.karimi@student.edu` | `student123` |
-| دانشجو | `maryam.rezaei@student.edu` | `student123` |
-| دانشجو | `amir.mousavi@student.edu` | `student123` |
+| نقش    | ایمیل                          | پسورد          |
+| ------ | ------------------------------ | -------------- |
+| استاد  | `ali.mohammadi@university.edu` | `professor123` |
+| استاد  | `sara.ahmadi@university.edu`   | `professor123` |
+| دانشجو | `reza.karimi@student.edu`      | `student123`   |
+| دانشجو | `maryam.hosseini@student.edu`  | `student123`   |
+| دانشجو | `amir.rezaei@student.edu`      | `student123`   |
 
 ⚠️ این حساب‌ها فقط برای دمو/تست داخلی‌اند. **قبل از باز کردن Pilot به دانشجویان واقعی، این حساب‌ها را حذف کنید** یا پسوردشان را عوض کنید، وگرنه هرکسی با این ایمیل/پسورد شناخته‌شده می‌تواند وارد بشه.
 
@@ -59,12 +59,12 @@ curl "https://<your-domain>/api/seed?secret=<SEED_SECRET>&action=force"
 
 ## ۴. Environment Variables لازم روی Vercel
 
-| متغیر | توضیح |
-|---|---|
-| `DATABASE_URL` | آدرس اتصال PostgreSQL (با `sslmode=require`) |
-| `JWT_SECRET` | یک رشتهٔ تصادفی و طولانی (`openssl rand -hex 32`) — **حتماً در production یک مقدار جداگانه از dev داشته باشید** |
-| `SEED_SECRET` | برای راه‌اندازی اولیه لازم است؛ بعد از seed اولیه پیشنهاد می‌شود حذف/rotate شود |
-| `NODE_ENV` | Vercel خودش `production` تنظیم می‌کند؛ نیازی به دستکاری دستی نیست |
+| متغیر          | توضیح                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL` | آدرس اتصال PostgreSQL (با `sslmode=require`)                                                                    |
+| `JWT_SECRET`   | یک رشتهٔ تصادفی و طولانی (`openssl rand -hex 32`) — **حتماً در production یک مقدار جداگانه از dev داشته باشید** |
+| `SEED_SECRET`  | برای راه‌اندازی اولیه لازم است؛ بعد از seed اولیه پیشنهاد می‌شود حذف/rotate شود                                 |
+| `NODE_ENV`     | Vercel خودش `production` تنظیم می‌کند؛ نیازی به دستکاری دستی نیست                                               |
 
 هیچ‌کدام از این مقادیر نباید در کد یا فایل‌های commit‌شده (مثل `drizzle.config.json`) قرار بگیرند.
 

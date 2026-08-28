@@ -7,7 +7,7 @@ import { comparePassword, signToken } from "@/lib/auth";
 import { checkRateLimit, resetRateLimit, getClientIp } from "@/lib/rateLimit";
 import { auditLog } from "@/lib/auditLog";
 
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS_PER_EMAIL = 5;
 const MAX_ATTEMPTS_PER_IP = 20;
 
@@ -78,7 +78,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Successful login — clear the counters for this email/IP.
+    if (user.role === "professor" && user.professorStatus !== "approved") {
+      const isPending = user.professorStatus === "pending";
+      auditLog(
+        isPending ? "professor_pending_login" : "professor_rejected_login",
+        {
+          userId: user.id,
+          email: user.email,
+          ip,
+          professorStatus: user.professorStatus,
+        }
+      );
+
+      return NextResponse.json(
+        {
+          error: isPending
+            ? "Your professor account is waiting for admin approval."
+            : "Your professor account has been rejected.",
+        },
+        { status: 403 }
+      );
+    }
+
     resetRateLimit(emailKey);
     resetRateLimit(ipKey);
     auditLog("login_success", { userId: user.id, email: user.email, ip });
@@ -91,8 +112,8 @@ export async function POST(req: NextRequest) {
     });
 
     const { password: _pwd, ...safeUser } = user;
-
     const response = NextResponse.json({ user: safeUser, token });
+
     response.cookies.set("auth_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
@@ -21,6 +22,7 @@ import {
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
@@ -35,6 +37,10 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    if (user?.role === "admin") {
+      router.replace("/dashboard/admin");
+      return;
+    }
     if (user) {
       setForm({
         name: user.name || "",
@@ -45,7 +51,7 @@ export default function ProfilePage() {
       setLanguages(user.programmingLanguages || []);
       setInterests(user.interests || []);
     }
-  }, [user]);
+  }, [user, router]);
 
   const mutation = useMutation({
     mutationFn: async () => {

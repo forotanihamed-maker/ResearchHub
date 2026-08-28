@@ -51,6 +51,12 @@ export default function RegisterPage() {
         university: "دانشگاه علم و صنعت ایران",
         bio: form.bio,
       });
+      if (form.role === "professor") {
+        setError(
+          "ثبت‌نام استاد انجام شد. حساب شما پس از تأیید ادمین فعال می‌شود."
+        );
+        return;
+      }
       router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");

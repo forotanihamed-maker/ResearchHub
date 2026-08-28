@@ -22,6 +22,11 @@ export const departmentEnum = pgEnum("department", [
   "علوم داده",
 ]);
 export const roleEnum = pgEnum("role", ["professor", "student", "admin"]);
+export const professorStatusEnum = pgEnum("professor_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
 export const projectStatusEnum = pgEnum("project_status", [
   "open",
   "in_progress",
@@ -44,6 +49,9 @@ export const users = pgTable(
     email: varchar("email", { length: 255 }).notNull().unique(),
     password: varchar("password", { length: 255 }).notNull(),
     role: roleEnum("role").notNull(),
+    professorStatus: professorStatusEnum("professor_status")
+      .notNull()
+      .default("approved"),
     avatar: varchar("avatar", { length: 512 }),
     bio: text("bio"),
     department: departmentEnum("department").notNull(),
@@ -61,6 +69,44 @@ export const users = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [index("users_email_idx").on(table.email)]
+);
+
+// Departments managed by each admin. An admin only sees/manages users,
+// projects and professors belonging to departments assigned here.
+export const adminDepartments = pgTable(
+  "admin_departments",
+  {
+    adminId: integer("admin_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    department: departmentEnum("department").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.adminId, table.department] }),
+    index("admin_departments_admin_id_idx").on(table.adminId),
+  ]
+);
+
+// Direct admin <-> professor messages. Project chat remains separate and
+// continues to be available to project members.
+export const directMessages = pgTable(
+  "direct_messages",
+  {
+    id: serial("id").primaryKey(),
+    senderId: integer("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recipientId: integer("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("direct_messages_sender_id_idx").on(table.senderId),
+    index("direct_messages_recipient_id_idx").on(table.recipientId),
+    index("direct_messages_created_at_idx").on(table.createdAt),
+  ]
 );
 
 // Projects
@@ -153,6 +199,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   applications: many(applications),
   projectMembers: many(projectMembers),
   chatMessages: many(chatMessages),
+  adminDepartments: many(adminDepartments),
+  sentDirectMessages: many(directMessages, { relationName: "sender" }),
+  receivedDirectMessages: many(directMessages, { relationName: "recipient" }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -195,5 +244,28 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
   sender: one(users, {
     fields: [chatMessages.senderId],
     references: [users.id],
+  }),
+}));
+
+export const adminDepartmentsRelations = relations(
+  adminDepartments,
+  ({ one }) => ({
+    admin: one(users, {
+      fields: [adminDepartments.adminId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const directMessagesRelations = relations(directMessages, ({ one }) => ({
+  sender: one(users, {
+    fields: [directMessages.senderId],
+    references: [users.id],
+    relationName: "sender",
+  }),
+  recipient: one(users, {
+    fields: [directMessages.recipientId],
+    references: [users.id],
+    relationName: "recipient",
   }),
 }));

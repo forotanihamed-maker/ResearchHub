@@ -1,8 +1,10 @@
 /*src\db\seed.ts */
 import "dotenv/config";
 import { db } from "./index";
-import { users } from "./schema";
+import { users, adminDepartments } from "./schema";
+import type { Department } from "../lib/validation";
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 
 async function seed() {
   console.log("🌱 شروع مقداردهی اولیه دیتابیس...");
@@ -18,6 +20,7 @@ async function seed() {
       email: "ali.mohammadi@university.edu",
       password: professorPassword,
       role: "professor",
+      professorStatus: "approved",
       department: "مهندسی نرم‌افزار",
       university: "دانشگاه علم و صنعت ایران",
       bio: "عضو هیئت علمی دانشکده مهندسی کامپیوتر دانشگاه علم و صنعت",
@@ -29,6 +32,7 @@ async function seed() {
       email: "sara.ahmadi@university.edu",
       password: professorPassword,
       role: "professor",
+      professorStatus: "approved",
       department: "هوش مصنوعی",
       university: "دانشگاه علم و صنعت ایران",
       bio: "متخصص یادگیری ماشین و هوش مصنوعی",
@@ -51,6 +55,26 @@ async function seed() {
       programmingLanguages: [],
     },
   ]);
+
+  const [admin] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, "admin@researchhub.ir"));
+  if (admin) {
+    const departments: Department[] = [
+      "مهندسی نرم‌افزار",
+      "هوش مصنوعی",
+      "شبکه‌های کامپیوتری",
+      "معماری سیستم‌های کامپیوتری",
+      "امنیت اطلاعات",
+      "علوم داده",
+    ];
+    await db
+      .insert(adminDepartments)
+      .values(
+        departments.map((department) => ({ adminId: admin.id, department }))
+      );
+  }
 
   console.log("👨‍🎓 ایجاد دانشجویان...");
   await db.insert(users).values([
@@ -93,7 +117,10 @@ async function seed() {
   console.log("");
   console.log("🔐 اطلاعات ورود:");
   console.log("👨‍🏫 ali.mohammadi@university.edu / professor123");
+  console.log("👩‍🏫 sara.ahmadi@university.edu / professor123");
   console.log("👨‍🎓 reza.karimi@student.edu / student123");
+  console.log("👩‍🎓 maryam.hosseini@student.edu / student123");
+  console.log("🧑‍🎓 amir.rezaei@student.edu / student123");
   console.log("👨‍💼 admin@researchhub.ir / admin123");
 
   process.exit(0);
