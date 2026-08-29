@@ -14,6 +14,7 @@ import { hashPassword } from "@/lib/auth";
 import { auditLog } from "@/lib/auditLog";
 import { getClientIp } from "@/lib/rateLimit";
 import type { Department } from "@/lib/validation";
+import { eq } from "drizzle-orm";
 
 // ============================================================
 // 🔒 Seed access guard
@@ -377,6 +378,55 @@ export async function GET(req: NextRequest) {
         .from(users)
         .orderBy(users.id);
       return NextResponse.json({ count: rows.length, users: rows });
+    }
+
+    // Read-only diagnostic: checks whether the admin-panel migration
+    // (admin_departments / direct_messages tables) has actually been
+    // applied to this database. Touches nothing.
+    if (action === "check-schema") {
+      const result: Record<string, string> = {};
+
+      try {
+        await db.select().from(adminDepartments).limit(1);
+        result.adminDepartments = "OK - table exists";
+      } catch (e) {
+        result.adminDepartments = `MISSING or ERROR - ${
+          e instanceof Error ? e.message : String(e)
+        }`;
+      }
+
+      try {
+        await db.select().from(directMessages).limit(1);
+        result.directMessages = "OK - table exists";
+      } catch (e) {
+        result.directMessages = `MISSING or ERROR - ${
+          e instanceof Error ? e.message : String(e)
+        }`;
+      }
+
+      const adminRows = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(eq(users.role, "admin"));
+
+      let assignedDepartments: Record<string, string[]> = {};
+      try {
+        for (const admin of adminRows) {
+          const rows = await db
+            .select({ department: adminDepartments.department })
+            .from(adminDepartments)
+            .where(eq(adminDepartments.adminId, admin.id));
+          assignedDepartments[admin.email] = rows.map((r) => r.department);
+        }
+      } catch {
+        assignedDepartments = {};
+      }
+
+      return NextResponse.json({
+        schema: result,
+        admins: adminRows,
+        assignedDepartments,
+      });
     }
 
     if (action === "clear") {

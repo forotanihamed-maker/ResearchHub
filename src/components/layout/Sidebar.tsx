@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
     label: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
+    roles: ["professor", "student"],
   },
   {
     label: "Browse Projects",
