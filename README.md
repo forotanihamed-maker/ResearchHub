@@ -95,7 +95,7 @@ npm run build       # next build — باید بدون خطا کامل شود
 
 ## مستندات مرتبط
 
-- [`PILOT_SETUP.md`](./PILOT_SETUP.md) — راهنمای راه‌اندازی Pilot، حساب‌های تستی، roll back
+- [`PILOT_SETUP.md`](./Documentation/PILOT_SETUP.md) — راهنمای راه‌اندازی Pilot، حساب‌های تستی، roll back
 - [`SECURITY.md`](./SECURITY.md) — مدل امنیتی، محدودیت‌های شناخته‌شده
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — معماری کامل سیستم
 - [`API.md`](./API.md) — مرجع کامل endpointها
