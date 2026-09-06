@@ -67,12 +67,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Get members
+    // Get members — email intentionally excluded here. Team members should
+    // not see each other's email addresses through this general endpoint;
+    // only the owning professor can see an applicant's email, via the
+    // separate GET /api/projects/[id]/applications endpoint.
     const members = await db
       .select({
         id: users.id,
         name: users.name,
-        email: users.email,
         role: users.role,
         avatar: users.avatar,
         department: users.department,

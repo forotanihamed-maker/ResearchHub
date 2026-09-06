@@ -36,6 +36,16 @@ export default function ProfilePage() {
   const [interestInput, setInterestInput] = useState("");
   const [saved, setSaved] = useState(false);
 
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [passwordFormError, setPasswordFormError] = useState<string | null>(
+    null
+  );
+
   useEffect(() => {
     if (user?.role === "admin") {
       router.replace("/dashboard/admin");
@@ -77,6 +87,54 @@ export default function ProfilePage() {
       setTimeout(() => setSaved(false), 3000);
     },
   });
+
+  const passwordMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/auth/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to change password");
+      return data;
+    },
+    onSuccess: () => {
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setPasswordFormError(null);
+      setPasswordSaved(true);
+      setTimeout(() => setPasswordSaved(false), 3000);
+    },
+    onError: (err: Error) => {
+      setPasswordFormError(err.message);
+    },
+  });
+
+  const submitPasswordChange = () => {
+    setPasswordFormError(null);
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      setPasswordFormError("Please fill in all password fields");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordFormError("New password must be at least 8 characters");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordFormError("New password and confirmation do not match");
+      return;
+    }
+
+    passwordMutation.mutate();
+  };
 
   const toggleLanguage = (lang: string) => {
     setLanguages((prev) =>
@@ -272,6 +330,75 @@ export default function ProfilePage() {
                 </Button>
               </div>
             )}
+          </CardBody>
+        </Card>
+
+        {/* Change Password */}
+        <Card>
+          <CardBody>
+            <div className="mb-4">
+              <h3 className="font-semibold text-slate-900">Change Password</h3>
+              <p className="text-sm text-slate-500 mt-0.5">
+                You&apos;ll need your current password to set a new one
+              </p>
+            </div>
+
+            <div className="space-y-3 max-w-sm">
+              <Input
+                label="Current Password"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) =>
+                  setPasswordForm({
+                    ...passwordForm,
+                    currentPassword: e.target.value,
+                  })
+                }
+              />
+              <Input
+                label="New Password"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) =>
+                  setPasswordForm({
+                    ...passwordForm,
+                    newPassword: e.target.value,
+                  })
+                }
+              />
+              <Input
+                label="Confirm New Password"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) =>
+                  setPasswordForm({
+                    ...passwordForm,
+                    confirmPassword: e.target.value,
+                  })
+                }
+              />
+            </div>
+
+            {passwordFormError && (
+              <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg border border-red-200 mt-3">
+                {passwordFormError}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 justify-end mt-4">
+              {passwordSaved && (
+                <span className="text-sm text-emerald-600 font-medium">
+                  ✓ Password updated!
+                </span>
+              )}
+              <Button
+                variant="outline"
+                onClick={submitPasswordChange}
+                loading={passwordMutation.isPending}
+              >
+                Update Password
+              </Button>
+            </div>
           </CardBody>
         </Card>
 
