@@ -1,4 +1,5 @@
-/*src\app\api\projects\[id]\files\route.ts */
+// src/app/api/projects/[id]/files/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { db } from "@/db";
@@ -11,6 +12,7 @@ import {
   validateFileType,
   MAX_FILE_SIZE_BYTES,
   ALLOWED_FILE_EXTENSIONS_LABEL,
+  type FileContext,
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
 import { getProjectAccess } from "@/lib/projectAccess";
@@ -26,6 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const { id } = await params;
     const projectId = parseId(id);
+
     if (projectId === null) {
       return NextResponse.json(
         { error: "Invalid project ID" },
@@ -37,17 +40,22 @@ export async function GET(req: NextRequest, { params }: Params) {
       projectId,
       authUser.userId
     );
+
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
+
     if (!isMember) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const contextParam = req.nextUrl.searchParams.get("context");
-    if (contextParam && !isValidFileContext(contextParam)) {
+
+    if (contextParam !== null && !isValidFileContext(contextParam)) {
       return NextResponse.json({ error: "Invalid context" }, { status: 400 });
     }
+
+    const validContext: FileContext | null = contextParam;
 
     const rows = await db
       .select({
@@ -65,10 +73,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       .from(projectFiles)
       .innerJoin(users, eq(projectFiles.uploaderId, users.id))
       .where(
-        contextParam
+        validContext
           ? and(
               eq(projectFiles.projectId, projectId),
-              eq(projectFiles.context, contextParam)
+              eq(projectFiles.context, validContext)
             )
           : eq(projectFiles.projectId, projectId)
       )
@@ -77,6 +85,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     return NextResponse.json({ files: rows });
   } catch (error) {
     console.error("Project files GET error:", error);
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -88,12 +97,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     // 1. authentication
     const authUser = await getAuthUser();
+
     if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
     const projectId = parseId(id);
+
     if (projectId === null) {
       return NextResponse.json(
         { error: "Invalid project ID" },
@@ -106,6 +117,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       projectId,
       authUser.userId
     );
+
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -116,6 +128,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     let formData: FormData;
+
     try {
       formData = await req.formData();
     } catch {
@@ -126,6 +139,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const context = formData.get("context");
+
     if (!isValidFileContext(context)) {
       return NextResponse.json({ error: "Invalid context" }, { status: 400 });
     }
@@ -135,10 +149,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (context === "deliverable") {
       if (!isOwner) {
         return NextResponse.json(
-          { error: "Only the project owner can upload the final deliverable" },
+          {
+            error: "Only the project owner can upload the final deliverable",
+          },
           { status: 403 }
         );
       }
+
       if (project.status !== "completed") {
         return NextResponse.json(
           {
@@ -151,20 +168,29 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const chatMessageIdRaw = formData.get("chatMessageId");
+
     let chatMessageId: number | null = null;
-    if (context === "chat" && typeof chatMessageIdRaw === "string" && chatMessageIdRaw) {
+
+    if (
+      context === "chat" &&
+      typeof chatMessageIdRaw === "string" &&
+      chatMessageIdRaw
+    ) {
       const parsed = parseId(chatMessageIdRaw);
+
       if (parsed === null) {
         return NextResponse.json(
           { error: "Invalid chat message ID" },
           { status: 400 }
         );
       }
+
       chatMessageId = parsed;
     }
 
     // 4. file existence
     const file = formData.get("file");
+
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
@@ -179,6 +205,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // 6. MIME/type
     const ext = validateFileType(file.name, file.type);
+
     if (!ext) {
       return NextResponse.json(
         {
@@ -192,6 +219,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       console.error(
         "Project files POST error: BLOB_READ_WRITE_TOKEN is not configured"
       );
+
       return NextResponse.json(
         { error: "File storage is not configured" },
         { status: 500 }
@@ -200,6 +228,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // 7. upload to Blob
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
     const pathname = `projects/${projectId}/${context}/${Date.now()}-${safeName}`;
 
     const blob = await put(pathname, file, {
@@ -235,11 +264,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
 
     return NextResponse.json(
-      { file: { ...saved, uploaderName: uploader?.name ?? "" } },
+      {
+        file: {
+          ...saved,
+          uploaderName: uploader?.name ?? "",
+        },
+      },
       { status: 201 }
     );
   } catch (error) {
     console.error("Project files POST error:", error);
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

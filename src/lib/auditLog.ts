@@ -1,4 +1,5 @@
-// src\lib\auditLog.ts
+// src/lib/auditLog.ts
+
 export type AuditEvent =
   | "login_success"
   | "login_failed"
@@ -14,7 +15,10 @@ export type AuditEvent =
   | "professor_created"
   | "professor_status_changed"
   | "project_file_uploaded"
-  | "project_file_deleted";
+  | "project_file_deleted"
+  | "password_change_rate_limited"
+  | "password_change_failed"
+  | "password_changed";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;
