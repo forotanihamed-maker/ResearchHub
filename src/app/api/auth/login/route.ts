@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "ایمیل و رمز عبور الزامی است" },
         { status: 400 }
       );
     }
@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
       );
       auditLog("login_rate_limited", { email: normalizedEmail, ip });
       return NextResponse.json(
-        { error: "Too many login attempts. Please try again later." },
+        {
+          error:
+            "تعداد تلاش‌های ورود بیش از حد مجاز است. لطفاً بعداً دوباره تلاش کنید.",
+        },
         { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
       );
     }
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
         reason: "no_such_user",
       });
       return NextResponse.json(
-        { error: "Invalid email or password" },
+        { error: "ایمیل یا رمز عبور نادرست است" },
         { status: 401 }
       );
     }
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       });
       return NextResponse.json(
-        { error: "Invalid email or password" },
+        { error: "ایمیل یا رمز عبور نادرست است" },
         { status: 401 }
       );
     }
@@ -93,8 +96,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: isPending
-            ? "Your professor account is waiting for admin approval."
-            : "Your professor account has been rejected.",
+            ? "حساب استاد شما در انتظار تأیید مدیر است."
+            : "حساب استاد شما رد شده است.",
         },
         { status: 403 }
       );
@@ -125,9 +128,6 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (error) {
     console.error("Login error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

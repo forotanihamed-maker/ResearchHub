@@ -27,7 +27,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  ArrowRight,
+  ArrowLeft,
   BookOpen,
 } from "lucide-react";
 import Link from "next/link";
@@ -76,7 +76,7 @@ export default function DashboardPage() {
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const res = await fetch("/api/dashboard/stats");
-      if (!res.ok) throw new Error("Failed to load stats");
+      if (!res.ok) throw new Error("خطا در دریافت آمار");
       return res.json() as Promise<{ stats: Stats }>;
     },
     enabled: !!user && user.role !== "admin",
@@ -90,7 +90,7 @@ export default function DashboardPage() {
           ? "/api/projects?my=true"
           : "/api/projects?status=open";
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to load projects");
+      if (!res.ok) throw new Error("خطا در دریافت پروژه‌ها");
       return res.json() as Promise<{ projects: Project[] }>;
     },
     enabled: !!user && user.role !== "admin",
@@ -100,7 +100,7 @@ export default function DashboardPage() {
     queryKey: ["my-applications"],
     queryFn: async () => {
       const res = await fetch("/api/applications");
-      if (!res.ok) throw new Error("Failed to load applications");
+      if (!res.ok) throw new Error("خطا در دریافت درخواست‌ها");
       return res.json() as Promise<{ applications: Application[] }>;
     },
     enabled: user?.role === "student",
@@ -112,63 +112,63 @@ export default function DashboardPage() {
 
   const professorStats = [
     {
-      label: "Total Projects",
+      label: "کل پروژه‌ها",
       value: stats?.totalProjects ?? 0,
       icon: FolderKanban,
       color: "bg-indigo-50 text-indigo-600",
-      desc: "All time",
+      desc: "مجموع تاکنون",
     },
     {
-      label: "Open Projects",
+      label: "پروژه‌های باز",
       value: stats?.openProjects ?? 0,
       icon: BookOpen,
       color: "bg-emerald-50 text-emerald-600",
-      desc: "Accepting applications",
+      desc: "در حال پذیرش درخواست",
     },
     {
-      label: "Pending Applications",
+      label: "درخواست‌های در انتظار",
       value: stats?.pendingApplications ?? 0,
       icon: AlertCircle,
       color: "bg-amber-50 text-amber-600",
-      desc: "Awaiting your review",
+      desc: "منتظر بررسی شما",
     },
     {
-      label: "Team Members",
+      label: "اعضای تیم",
       value: stats?.totalMembers ?? 0,
       icon: Users,
       color: "bg-purple-50 text-purple-600",
-      desc: "Across all projects",
+      desc: "در همه پروژه‌ها",
     },
   ];
 
   const studentStats = [
     {
-      label: "Applications Sent",
+      label: "درخواست‌های ارسالی",
       value: stats?.totalApplications ?? 0,
       icon: FileText,
       color: "bg-indigo-50 text-indigo-600",
-      desc: "Total submitted",
+      desc: "مجموع ارسال‌شده",
     },
     {
-      label: "Pending",
+      label: "در انتظار",
       value: stats?.pendingApplications ?? 0,
       icon: Clock,
       color: "bg-amber-50 text-amber-600",
-      desc: "Awaiting decision",
+      desc: "منتظر تصمیم",
     },
     {
-      label: "Approved",
+      label: "تأییدشده",
       value: stats?.approvedApplications ?? 0,
       icon: CheckCircle2,
       color: "bg-emerald-50 text-emerald-600",
-      desc: "Successful applications",
+      desc: "درخواست‌های موفق",
     },
     {
-      label: "Projects Joined",
+      label: "پروژه‌های عضو",
       value: stats?.projectsJoined ?? 0,
       icon: Users,
       color: "bg-purple-50 text-purple-600",
-      desc: "Active memberships",
+      desc: "عضویت‌های فعال",
     },
   ];
 
@@ -180,9 +180,9 @@ export default function DashboardPage() {
   return (
     <div>
       <TopBar
-        title={`Welcome back, ${user?.name?.split(" ")[0]} 👋`}
-        subtitle={`${user?.role === "professor" ? "Professor" : "Student"} · ${
-          user?.department || "University Research Platform"
+        title={`خوش آمدید، ${user?.name?.split(" ")[0]} 👋`}
+        subtitle={`${user?.role === "professor" ? "استاد" : "دانشجو"} · ${
+          user?.department || "سامانه پژوهشی دانشگاه"
         }`}
       />
 
@@ -219,8 +219,8 @@ export default function DashboardPage() {
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-semibold text-slate-900">
                 {user?.role === "professor"
-                  ? "Your Recent Projects"
-                  : "Open Projects"}
+                  ? "پروژه‌های اخیر شما"
+                  : "پروژه‌های باز"}
               </h2>
               <Link
                 href={
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                 }
                 className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
               >
-                View all <ArrowRight size={12} />
+                مشاهده همه <ArrowLeft size={12} />
               </Link>
             </div>
             <CardBody className="p-0">
@@ -246,13 +246,13 @@ export default function DashboardPage() {
                     size={32}
                     className="mx-auto mb-3 text-slate-300"
                   />
-                  <p>No projects yet</p>
+                  <p>هنوز پروژه‌ای وجود ندارد</p>
                   {user?.role === "professor" && (
                     <Link
                       href="/dashboard/my-projects/new"
                       className="mt-2 inline-block text-indigo-600 hover:underline text-xs"
                     >
-                      Create your first project →
+                      ساخت اولین پروژه ←
                     </Link>
                   )}
                 </div>
@@ -295,14 +295,12 @@ export default function DashboardPage() {
           {user?.role === "student" ? (
             <Card>
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">
-                  My Applications
-                </h2>
+                <h2 className="font-semibold text-slate-900">درخواست‌های من</h2>
                 <Link
                   href="/dashboard/applications"
                   className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                 >
-                  View all <ArrowRight size={12} />
+                  مشاهده همه <ArrowLeft size={12} />
                 </Link>
               </div>
               <CardBody className="p-0">
@@ -321,12 +319,12 @@ export default function DashboardPage() {
                       size={32}
                       className="mx-auto mb-3 text-slate-300"
                     />
-                    <p>No applications yet</p>
+                    <p>هنوز درخواستی ارسال نشده</p>
                     <Link
                       href="/dashboard/projects"
                       className="mt-2 inline-block text-indigo-600 hover:underline text-xs"
                     >
-                      Browse open projects →
+                      مرور پروژه‌های باز ←
                     </Link>
                   </div>
                 ) : (
@@ -358,7 +356,7 @@ export default function DashboardPage() {
           ) : (
             <Card>
               <div className="px-5 py-4 border-b border-slate-100">
-                <h2 className="font-semibold text-slate-900">Quick Stats</h2>
+                <h2 className="font-semibold text-slate-900">آمار سریع</h2>
               </div>
               <CardBody className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -367,7 +365,7 @@ export default function DashboardPage() {
                       <BookOpen size={16} className="text-emerald-600" />
                     </div>
                     <span className="text-sm text-slate-700">
-                      Open Projects
+                      پروژه‌های باز
                     </span>
                   </div>
                   <span className="font-bold text-slate-900">
@@ -379,7 +377,7 @@ export default function DashboardPage() {
                     <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
                       <TrendingUp size={16} className="text-blue-600" />
                     </div>
-                    <span className="text-sm text-slate-700">In Progress</span>
+                    <span className="text-sm text-slate-700">در حال انجام</span>
                   </div>
                   <span className="font-bold text-slate-900">
                     {stats?.inProgressProjects ?? 0}
@@ -390,7 +388,7 @@ export default function DashboardPage() {
                     <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
                       <CheckCircle2 size={16} className="text-slate-600" />
                     </div>
-                    <span className="text-sm text-slate-700">Completed</span>
+                    <span className="text-sm text-slate-700">تکمیل‌شده</span>
                   </div>
                   <span className="font-bold text-slate-900">
                     {stats?.completedProjects ?? 0}
@@ -402,7 +400,7 @@ export default function DashboardPage() {
                       <AlertCircle size={16} className="text-amber-600" />
                     </div>
                     <span className="text-sm text-slate-700">
-                      Pending Reviews
+                      در انتظار بررسی
                     </span>
                   </div>
                   <span className="font-bold text-slate-900">

@@ -10,11 +10,14 @@ export async function GET() {
   try {
     const authUser = await getAuthUser();
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     if (authUser.role !== "student") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
     }
 
     const apps = await db
@@ -41,9 +44,6 @@ export async function GET() {
     return NextResponse.json({ applications: apps });
   } catch (error) {
     console.error("My applications error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

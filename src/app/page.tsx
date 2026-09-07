@@ -41,8 +41,8 @@ export default function HomePage() {
     >
       {/* Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/3" />
-        <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-3xl translate-y-1/3 translate-x-1/3" />
+        <div className="absolute top-0 start-0 w-[800px] h-[800px] bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/3" />
+        <div className="absolute bottom-0 end-0 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-3xl translate-y-1/3 translate-x-1/3" />
       </div>
 
       <div className="relative">
@@ -97,7 +97,7 @@ export default function HomePage() {
               <Link href="/auth/register">
                 <Button size="lg" className="px-8">
                   شروع کار با ResearchHub
-                  <ArrowLeft size={17} className="mr-2" />
+                  <ArrowLeft size={17} className="me-2" />
                 </Button>
               </Link>
 
@@ -327,7 +327,7 @@ export default function HomePage() {
               <Link href="/auth/login">
                 <Button size="lg" className="px-8">
                   مشاهده نسخه Demo
-                  <ArrowLeft size={17} className="mr-2" />
+                  <ArrowLeft size={17} className="me-2" />
                 </Button>
               </Link>
             </div>

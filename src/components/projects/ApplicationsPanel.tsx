@@ -38,7 +38,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
     queryKey: ["project-applications", projectId],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/applications`);
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("خطا در دریافت درخواست‌ها");
       return res.json() as Promise<{ applications: Application[] }>;
     },
   });
@@ -59,7 +59,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
           body: JSON.stringify({ status }),
         }
       );
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("به‌روزرسانی درخواست ناموفق بود");
       return res.json();
     },
     onSuccess: () => {
@@ -91,8 +91,8 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
     return (
       <EmptyState
         icon={FileText}
-        title="No applications yet"
-        description="When students apply to this project, they will appear here."
+        title="هنوز درخواستی ارسال نشده"
+        description="با ارسال درخواست دانشجویان برای این پروژه، در اینجا نمایش داده می‌شوند."
       />
     );
   }
@@ -154,7 +154,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
 
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400">
-              Applied {formatTimeAgo(app.createdAt)}
+              ارسال‌شده {formatTimeAgo(app.createdAt)}
             </span>
             {app.status === "pending" && (
               <div className="flex gap-2">
@@ -166,7 +166,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
                   }
                   loading={updateMutation.isPending}
                 >
-                  <XCircle size={14} /> Reject
+                  <XCircle size={14} /> رد
                 </Button>
                 <Button
                   size="sm"
@@ -176,7 +176,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
                   }
                   loading={updateMutation.isPending}
                 >
-                  <CheckCircle2 size={14} /> Approve
+                  <CheckCircle2 size={14} /> تأیید
                 </Button>
               </div>
             )}
@@ -191,7 +191,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
       {pending.length > 0 && (
         <div>
           <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-            Pending Review
+            در انتظار بررسی
             <span className="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full">
               {pending.length}
             </span>
@@ -207,7 +207,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
       {others.length > 0 && (
         <div>
           <h3 className="font-semibold text-slate-700 mb-3 text-sm">
-            Previous Applications
+            درخواست‌های قبلی
           </h3>
           <div className="space-y-3">
             {others.map((app) => (

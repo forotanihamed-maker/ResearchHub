@@ -39,6 +39,12 @@ export const applicationStatusEnum = pgEnum("application_status", [
   "cancelled",
 ]);
 export const messageTypeEnum = pgEnum("message_type", ["text"]);
+// ج.۲ — file infrastructure: which part of the product a file belongs to.
+export const fileContextEnum = pgEnum("file_context", [
+  "chat",
+  "document",
+  "deliverable",
+]);
 
 // Users
 export const users = pgTable(
@@ -193,6 +199,39 @@ export const chatMessages = pgTable(
   ]
 );
 
+// Project Files (ج.۲) — documents, chat attachments and final
+// deliverables all share this one table, distinguished by `context`.
+// Physical bytes live in Vercel Blob (ج.۱); this row only stores the
+// resulting URL + metadata.
+export const projectFiles = pgTable(
+  "project_files",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    uploaderId: integer("uploader_id")
+      .notNull()
+      .references(() => users.id),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileUrl: varchar("file_url", { length: 1024 }).notNull(),
+    fileSize: integer("file_size").notNull(),
+    context: fileContextEnum("context").notNull(),
+    // Only set when context = "chat": links the file to the chat message
+    // that shared it, so it can be shown inline in the conversation.
+    chatMessageId: integer("chat_message_id").references(
+      () => chatMessages.id,
+      { onDelete: "cascade" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_files_project_id_idx").on(table.projectId),
+    index("project_files_context_idx").on(table.context),
+    index("project_files_chat_message_id_idx").on(table.chatMessageId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   ownedProjects: many(projects),
@@ -202,6 +241,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   adminDepartments: many(adminDepartments),
   sentDirectMessages: many(directMessages, { relationName: "sender" }),
   receivedDirectMessages: many(directMessages, { relationName: "recipient" }),
+  uploadedFiles: many(projectFiles),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -212,6 +252,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   applications: many(applications),
   members: many(projectMembers),
   chatMessages: many(chatMessages),
+  files: many(projectFiles),
 }));
 
 export const applicationsRelations = relations(applications, ({ one }) => ({
@@ -236,14 +277,33 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
   }),
 }));
 
-export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+export const chatMessagesRelations = relations(
+  chatMessages,
+  ({ one, many }) => ({
+    project: one(projects, {
+      fields: [chatMessages.projectId],
+      references: [projects.id],
+    }),
+    sender: one(users, {
+      fields: [chatMessages.senderId],
+      references: [users.id],
+    }),
+    attachments: many(projectFiles),
+  })
+);
+
+export const projectFilesRelations = relations(projectFiles, ({ one }) => ({
   project: one(projects, {
-    fields: [chatMessages.projectId],
+    fields: [projectFiles.projectId],
     references: [projects.id],
   }),
-  sender: one(users, {
-    fields: [chatMessages.senderId],
+  uploader: one(users, {
+    fields: [projectFiles.uploaderId],
     references: [users.id],
+  }),
+  chatMessage: one(chatMessages, {
+    fields: [projectFiles.chatMessageId],
+    references: [chatMessages.id],
   }),
 }));
 

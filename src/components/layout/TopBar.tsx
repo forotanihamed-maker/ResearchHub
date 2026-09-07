@@ -12,6 +12,12 @@ interface TopBarProps {
   actions?: React.ReactNode;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  professor: "استاد",
+  student: "دانشجو",
+  admin: "مدیر سامانه",
+};
+
 export function TopBar({ title, subtitle, actions }: TopBarProps) {
   const { user } = useAuth();
   const { open } = useSidebar();
@@ -23,7 +29,7 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
           <button
             onClick={open}
             className="lg:hidden shrink-0 rounded-lg p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-            aria-label="Open menu"
+            aria-label="باز کردن منو"
           >
             <Menu size={20} />
           </button>
@@ -41,13 +47,15 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
         <div className="flex items-center gap-3 shrink-0">
           {actions}
           {user && (
-            <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+            <div className="flex items-center gap-2 ps-3 border-s border-slate-200">
               <Avatar name={user.name} src={user.avatar} size="sm" />
               <div className="hidden sm:block">
                 <p className="text-sm font-medium text-slate-900 leading-tight">
                   {user.name}
                 </p>
-                <p className="text-xs text-slate-500 capitalize">{user.role}</p>
+                <p className="text-xs text-slate-500">
+                  {ROLE_LABELS[user.role] ?? user.role}
+                </p>
               </div>
             </div>
           )}

@@ -18,8 +18,8 @@ interface ErrorStateProps {
  * before) silently hides real failures from the user.
  */
 export function ErrorState({
-  title = "Something went wrong",
-  description = "We couldn't load this data. Please try again.",
+  title = "خطایی رخ داد",
+  description = "دریافت اطلاعات ناموفق بود. لطفاً دوباره تلاش کنید.",
   onRetry,
   className,
 }: ErrorStateProps) {
@@ -37,7 +37,7 @@ export function ErrorState({
       <p className="text-sm text-slate-500 max-w-xs mb-4">{description}</p>
       {onRetry && (
         <Button variant="outline" onClick={onRetry}>
-          Try again
+          تلاش دوباره
         </Button>
       )}
     </div>

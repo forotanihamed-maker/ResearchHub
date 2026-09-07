@@ -12,7 +12,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const authUser = await getAuthUser();
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id, appId } = await params;
@@ -26,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       applicationId <= 0
     ) {
       return NextResponse.json(
-        { error: "Invalid project or application ID" },
+        { error: "شناسه پروژه یا درخواست نامعتبر است" },
         { status: 400 }
       );
     }
@@ -39,10 +42,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .where(eq(applications.id, applicationId));
 
     if (!app || app.projectId !== projectId) {
-      return NextResponse.json(
-        { error: "Application not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "درخواست یافت نشد" }, { status: 404 });
     }
 
     // Professor can approve/reject
@@ -58,18 +58,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
 
       if (!project) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return NextResponse.json(
+          { error: "دسترسی مجاز نیست" },
+          { status: 403 }
+        );
       }
 
       if (!["approved", "rejected"].includes(status)) {
         return NextResponse.json(
-          { error: "Invalid status for professor" },
+          { error: "وضعیت انتخابی برای استاد نامعتبر است" },
           { status: 400 }
         );
       }
       if (app.status !== "pending") {
         return NextResponse.json(
-          { error: "Only pending applications can be updated" },
+          { error: "فقط درخواست‌های در انتظار بررسی قابل تغییرند" },
           { status: 409 }
         );
       }
@@ -172,14 +175,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (authUser.role === "student" && app.studentId === authUser.userId) {
       if (status !== "cancelled") {
         return NextResponse.json(
-          { error: "Students can only cancel applications" },
+          { error: "فقط دانشجویان می‌توانند درخواست را لغو کنند" },
           { status: 400 }
         );
       }
 
       if (app.status !== "pending") {
         return NextResponse.json(
-          { error: "Can only cancel pending applications" },
+          { error: "فقط درخواست‌های در انتظار بررسی قابل لغو هستند" },
           { status: 400 }
         );
       }
@@ -192,15 +195,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ message: "Application cancelled" });
     }
 
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
   } catch (error) {
     if (error instanceof Error && error.message === "PROJECT_FULL") {
-      return NextResponse.json({ error: "Project is full" }, { status: 409 });
+      return NextResponse.json(
+        { error: "ظرفیت پروژه تکمیل است" },
+        { status: 409 }
+      );
     }
     console.error("Application PATCH error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

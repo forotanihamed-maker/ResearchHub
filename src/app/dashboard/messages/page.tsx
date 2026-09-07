@@ -31,7 +31,7 @@ export default function MessagesPage() {
     enabled: !!user,
     queryFn: async () => {
       const res = await fetch("/api/projects?chat=true");
-      if (!res.ok) throw new Error("Failed to load team projects");
+      if (!res.ok) throw new Error("خطا در دریافت پروژه‌های تیمی");
       const json = (await res.json()) as { projects: ProjectMembership[] };
       return json.projects;
     },
@@ -50,8 +50,8 @@ export default function MessagesPage() {
   return (
     <div>
       <TopBar
-        title="Team Messages"
-        subtitle="Chat with your research project teams"
+        title="پیام‌های تیمی"
+        subtitle="با اعضای تیم پروژه‌های پژوهشی خود گفتگو کنید"
       />
 
       <div className="p-6">
@@ -67,15 +67,15 @@ export default function MessagesPage() {
         ) : projects.length === 0 ? (
           <EmptyState
             icon={MessageSquare}
-            title="No team chats yet"
-            description="Join a research project to access the team chat. Apply to open projects or wait for your applications to be approved."
+            title="هنوز گفتگوی تیمی وجود ندارد"
+            description="برای دسترسی به گفتگوی تیمی، عضو یک پروژه پژوهشی شوید. برای پروژه‌های باز درخواست دهید یا منتظر تأیید درخواست‌های خود بمانید."
           />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 h-[calc(100vh-180px)]">
             {/* Project list */}
             <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
               <div className="px-4 py-3 border-b border-slate-100">
-                <p className="font-semibold text-slate-900 text-sm">Projects</p>
+                <p className="font-semibold text-slate-900 text-sm">پروژه‌ها</p>
               </div>
               <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                 {projects.map((project) => (
@@ -83,9 +83,9 @@ export default function MessagesPage() {
                     key={project.id}
                     onClick={() => setSelectedProjectId(project.id)}
                     className={cn(
-                      "w-full text-left px-4 py-3 transition-colors",
+                      "w-full text-start px-4 py-3 transition-colors",
                       selectedProjectId === project.id
-                        ? "bg-indigo-50 border-r-2 border-r-indigo-600"
+                        ? "bg-indigo-50 border-e-2 border-e-indigo-600"
                         : "hover:bg-slate-50"
                     )}
                   >
@@ -116,9 +116,11 @@ export default function MessagesPage() {
                       className="mx-auto mb-3 text-slate-200"
                     />
                     <p className="text-sm font-medium">
-                      Select a project to chat
+                      یک پروژه را برای گفتگو انتخاب کنید
                     </p>
-                    <p className="text-xs">Choose from your active projects</p>
+                    <p className="text-xs">
+                      از میان پروژه‌های فعال خود انتخاب کنید
+                    </p>
                   </div>
                 </div>
               )}

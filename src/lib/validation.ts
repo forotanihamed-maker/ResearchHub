@@ -249,3 +249,66 @@ export function isValidProfessorStatus(
     (PROFESSOR_STATUSES as readonly string[]).includes(value)
   );
 }
+
+// ---------------------------------------------------------------------------
+// ج.۴ — Project files (documents, chat attachments, deliverables)
+// ---------------------------------------------------------------------------
+
+export const FILE_CONTEXTS = ["chat", "document", "deliverable"] as const;
+export type FileContext = typeof FILE_CONTEXTS[number];
+
+export function isValidFileContext(value: unknown): value is FileContext {
+  return (
+    typeof value === "string" &&
+    (FILE_CONTEXTS as readonly string[]).includes(value)
+  );
+}
+
+// 10MB, enforced server-side (ج.۴) regardless of any client-side check.
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+// Extension -> allowed MIME types. Checked against both the filename and
+// the browser-reported content type; neither is fully trustworthy alone,
+// but together they rule out simple extension-swap tricks.
+export const ALLOWED_FILE_TYPES: Record<string, string[]> = {
+  pdf: ["application/pdf"],
+  doc: ["application/msword"],
+  docx: [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  zip: ["application/zip", "application/x-zip-compressed"],
+  png: ["image/png"],
+  jpg: ["image/jpeg"],
+  jpeg: ["image/jpeg"],
+};
+
+/**
+ * Validates an uploaded file's name + declared MIME type against the
+ * allow-list. Returns the lower-cased extension on success, or null if
+ * the file should be rejected.
+ */
+export function validateFileType(
+  fileName: string,
+  mimeType: string
+): string | null {
+  const parts = fileName.toLowerCase().split(".");
+  if (parts.length < 2) return null;
+  const ext = parts[parts.length - 1];
+
+  const allowedMimes = ALLOWED_FILE_TYPES[ext];
+  if (!allowedMimes) return null;
+
+  // Some browsers/OSes send an empty or generic content type for less
+  // common files; when that happens we fall back to trusting the
+  // extension alone rather than rejecting a legitimate upload.
+  if (mimeType && !allowedMimes.includes(mimeType)) {
+    return null;
+  }
+
+  return ext;
+}
+
+/** Human-readable list of allowed extensions, e.g. for error messages. */
+export const ALLOWED_FILE_EXTENSIONS_LABEL = Object.keys(ALLOWED_FILE_TYPES)
+  .join(", ")
+  .toUpperCase();

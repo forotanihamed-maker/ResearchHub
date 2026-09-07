@@ -12,7 +12,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const authUser = await getAuthUser();
 
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
@@ -21,14 +24,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     // Validate project ID
     if (!Number.isInteger(projectId) || projectId <= 0) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
 
     // Only the professor who owns the project can see applications
     if (authUser.role !== "professor") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
     }
 
     const [project] = await db
@@ -45,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       );
 
     if (!project) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
     }
 
     const apps = await db
@@ -76,10 +79,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   } catch (error) {
     console.error("Applications GET error:", error);
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }
 
@@ -88,12 +88,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     const authUser = await getAuthUser();
 
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     if (authUser.role !== "student") {
       return NextResponse.json(
-        { error: "Only students can apply" },
+        { error: "فقط دانشجویان می‌توانند درخواست ارسال کنند" },
         { status: 403 }
       );
     }
@@ -104,7 +107,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Validate project ID
     if (!Number.isInteger(projectId) || projectId <= 0) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
@@ -118,14 +121,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       rawMessage !== null &&
       typeof rawMessage !== "string"
     ) {
-      return NextResponse.json({ error: "Invalid message" }, { status: 400 });
+      return NextResponse.json({ error: "پیام نامعتبر است" }, { status: 400 });
     }
 
     const message = typeof rawMessage === "string" ? rawMessage.trim() : "";
 
     if (message.length > 2000) {
       return NextResponse.json(
-        { error: "Application message is too long" },
+        { error: "متن درخواست بیش از حد طولانی است" },
         { status: 400 }
       );
     }
@@ -143,7 +146,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (!project) {
       return NextResponse.json(
-        { error: "Project not found or not open" },
+        { error: "پروژه یافت نشد یا باز نیست" },
         { status: 404 }
       );
     }
@@ -163,7 +166,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (existingApplication) {
       return NextResponse.json(
-        { error: "Already applied to this project" },
+        { error: "قبلاً برای این پروژه درخواست داده‌اید" },
         { status: 409 }
       );
     }
@@ -182,7 +185,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
 
     if (existingMember) {
-      return NextResponse.json({ error: "Already a member" }, { status: 409 });
+      return NextResponse.json(
+        { error: "شما از قبل عضو هستید" },
+        { status: 409 }
+      );
     }
 
     // Check current project member count (excluding the professor's own
@@ -200,7 +206,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     ).length;
 
     if (studentMemberCount >= project.maxMembers) {
-      return NextResponse.json({ error: "Project is full" }, { status: 409 });
+      return NextResponse.json(
+        { error: "ظرفیت پروژه تکمیل است" },
+        { status: 409 }
+      );
     }
 
     const [app] = await db
@@ -217,9 +226,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     console.error("Application POST error:", error);
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

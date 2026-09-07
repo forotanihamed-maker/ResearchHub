@@ -19,11 +19,14 @@ export async function GET(req: NextRequest) {
   try {
     const authUser = await getAuthUser();
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
     if (authUser.role === "admin") {
       return NextResponse.json(
-        { error: "Admin access is limited to the admin panel" },
+        { error: "دسترسی مدیر فقط از طریق پنل مدیریت امکان‌پذیر است" },
         { status: 403 }
       );
     }
@@ -195,10 +198,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ projects: result });
   } catch (error) {
     console.error("Projects GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }
 
@@ -206,7 +206,10 @@ export async function POST(req: NextRequest) {
   try {
     const authUser = await getAuthUser();
     if (!authUser || authUser.role !== "professor") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const body = await req.json();
@@ -216,7 +219,7 @@ export async function POST(req: NextRequest) {
     if (cleanTitle === null) {
       return NextResponse.json(
         {
-          error: `Title must be between ${TITLE_MIN} and ${TITLE_MAX} characters`,
+          error: `عنوان باید بین ${TITLE_MIN} تا ${TITLE_MAX} کاراکتر باشد`,
         },
         { status: 400 }
       );
@@ -226,7 +229,7 @@ export async function POST(req: NextRequest) {
     if (cleanDescription === null) {
       return NextResponse.json(
         {
-          error: `Description must be between ${DESCRIPTION_MIN} and ${DESCRIPTION_MAX} characters`,
+          error: `توضیحات باید بین ${DESCRIPTION_MIN} تا ${DESCRIPTION_MAX} کاراکتر باشد`,
         },
         { status: 400 }
       );
@@ -237,7 +240,7 @@ export async function POST(req: NextRequest) {
       const m = parseMaxMembers(maxMembers);
       if (m === null) {
         return NextResponse.json(
-          { error: "maxMembers must be a positive integer" },
+          { error: "حداکثر تعداد اعضا باید یک عدد صحیح مثبت باشد" },
           { status: 400 }
         );
       }
@@ -247,7 +250,7 @@ export async function POST(req: NextRequest) {
     const deadlineResult = parseDeadline(deadline);
     if (!deadlineResult.ok) {
       return NextResponse.json(
-        { error: "Invalid deadline date" },
+        { error: "تاریخ مهلت نامعتبر است" },
         { status: 400 }
       );
     }
@@ -273,9 +276,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     console.error("Projects POST error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

@@ -34,6 +34,8 @@ import {
 import Link from "next/link";
 import { ChatPanel } from "@/components/projects/ChatPanel";
 import { ApplicationsPanel } from "@/components/projects/ApplicationsPanel";
+import { ProjectFiles } from "@/components/projects/ProjectFiles";
+import { messages } from "@/lib/messages.fa";
 
 interface ProjectDetail {
   id: number;
@@ -78,7 +80,7 @@ export default function ProjectDetailPage({
   const [applyModal, setApplyModal] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "details" | "chat" | "applications"
+    "details" | "chat" | "applications" | "files"
   >("details");
 
   const { data, isLoading } = useQuery({
@@ -99,7 +101,7 @@ export default function ProjectDetailPage({
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to apply");
+        throw new Error(err.error || "ارسال درخواست ناموفق بود");
       }
       return res.json();
     },
@@ -121,7 +123,7 @@ export default function ProjectDetailPage({
 
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.error || "Failed to complete project");
+        throw new Error(err?.error || "تکمیل پروژه ناموفق بود");
       }
 
       return res.json();
@@ -143,7 +145,7 @@ export default function ProjectDetailPage({
 
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.error || "Failed to close applications");
+        throw new Error(err?.error || "بستن درخواست‌ها ناموفق بود");
       }
 
       return res.json();
@@ -176,7 +178,7 @@ export default function ProjectDetailPage({
   if (isLoading) {
     return (
       <div>
-        <TopBar title="Loading..." />
+        <TopBar title="در حال بارگذاری..." />
         <div className="p-6">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-slate-200 rounded w-1/2" />
@@ -191,12 +193,13 @@ export default function ProjectDetailPage({
   if (!project) {
     return (
       <div>
-        <TopBar title="Project Not Found" />
+        <TopBar title="پروژه پیدا نشد" />
         <div className="p-6">
-          <p className="text-slate-500">This project could not be found.</p>
+          <p className="text-slate-500">این پروژه پیدا نشد.</p>
           <Link href="/dashboard/projects">
             <Button variant="outline" className="mt-4">
-              <ArrowLeft size={16} /> Back to Projects
+              <ArrowLeft size={16} className="rtl:rotate-180" /> بازگشت به
+              پروژه‌ها
             </Button>
           </Link>
         </div>
@@ -214,22 +217,25 @@ export default function ProjectDetailPage({
     !project.isMember;
 
   const tabs = [
-    { key: "details" as const, label: "Details" },
-    ...(project.isMember ? [{ key: "chat" as const, label: "Team Chat" }] : []),
-    ...(isOwner
-      ? [{ key: "applications" as const, label: "Applications" }]
+    { key: "details" as const, label: "جزئیات" },
+    ...(project.isMember
+      ? [{ key: "chat" as const, label: "گفتگوی تیم" }]
       : []),
+    ...(project.isMember
+      ? [{ key: "files" as const, label: "فایل‌های پروژه" }]
+      : []),
+    ...(isOwner ? [{ key: "applications" as const, label: "درخواست‌ها" }] : []),
   ];
 
   return (
     <div>
       <TopBar
         title={project.title}
-        subtitle={`by ${project.professorName}`}
+        subtitle={`استاد: ${project.professorName}`}
         actions={
           <Link href="/dashboard/projects">
             <Button variant="ghost" size="sm">
-              <ArrowLeft size={16} /> Back
+              <ArrowLeft size={16} className="rtl:rotate-180" /> بازگشت
             </Button>
           </Link>
         }
@@ -266,7 +272,7 @@ export default function ProjectDetailPage({
                 </Badge>
                 {canApply && (
                   <Button onClick={() => setApplyModal(true)}>
-                    <Send size={16} /> Apply Now
+                    <Send size={16} /> ارسال درخواست
                   </Button>
                 )}
                 {isOwner && project.status === "open" && (
@@ -275,7 +281,7 @@ export default function ProjectDetailPage({
                     onClick={() => {
                       if (
                         window.confirm(
-                          "Close applications for this project? The project will remain in progress and new applications will no longer be accepted."
+                          "درخواست‌های این پروژه بسته شود؟ پروژه در حالت «در حال انجام» باقی می‌ماند و دیگر درخواست جدیدی پذیرفته نمی‌شود."
                         )
                       ) {
                         closeApplicationsMutation.mutate();
@@ -284,7 +290,7 @@ export default function ProjectDetailPage({
                     loading={closeApplicationsMutation.isPending}
                     disabled={closeApplicationsMutation.isPending}
                   >
-                    <Clock size={16} /> Close Applications
+                    <Clock size={16} /> بستن درخواست‌ها
                   </Button>
                 )}
                 {closeApplicationsMutation.isError && (
@@ -298,7 +304,7 @@ export default function ProjectDetailPage({
                     onClick={() => {
                       if (
                         window.confirm(
-                          "Mark this project as completed? New applications will no longer be accepted."
+                          "این پروژه به عنوان تکمیل‌شده علامت‌گذاری شود؟ دیگر درخواست جدیدی پذیرفته نمی‌شود."
                         )
                       ) {
                         completeMutation.mutate();
@@ -307,7 +313,7 @@ export default function ProjectDetailPage({
                     loading={completeMutation.isPending}
                     disabled={completeMutation.isPending}
                   >
-                    <CheckCircle size={16} /> Mark as Completed
+                    <CheckCircle size={16} /> علامت‌گذاری به‌عنوان تکمیل‌شده
                   </Button>
                 )}
                 {completeMutation.isError && (
@@ -318,7 +324,8 @@ export default function ProjectDetailPage({
                 {myApp && myApp.status === "pending" && (
                   <div className="flex items-center gap-2">
                     <Badge className="bg-amber-100 text-amber-700 border-amber-200 px-3 py-1">
-                      <Clock size={12} className="mr-1" /> Application Pending
+                      <Clock size={12} className="me-1" /> درخواست در انتظار
+                      بررسی
                     </Badge>
                     <Button
                       variant="outline"
@@ -326,23 +333,24 @@ export default function ProjectDetailPage({
                       onClick={() => cancelMutation.mutate(myApp.id)}
                       loading={cancelMutation.isPending}
                     >
-                      Cancel
+                      لغو
                     </Button>
                   </div>
                 )}
                 {myApp && myApp.status === "approved" && (
                   <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 px-3 py-1">
-                    <CheckCircle2 size={12} className="mr-1" /> Approved
+                    <CheckCircle2 size={12} className="me-1" /> پذیرفته‌شده
                   </Badge>
                 )}
                 {myApp && myApp.status === "rejected" && (
                   <Badge className="bg-red-100 text-red-700 border-red-200 px-3 py-1">
-                    <XCircle size={12} className="mr-1" /> Not Selected
+                    <XCircle size={12} className="me-1" /> انتخاب نشده
                   </Badge>
                 )}
                 {project.isMember && !myApp && (
                   <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 px-3 py-1">
-                    <UserCheck size={12} className="mr-1" /> You're a member
+                    <UserCheck size={12} className="me-1" /> شما عضو این پروژه
+                    هستید
                   </Badge>
                 )}
               </div>
@@ -351,7 +359,7 @@ export default function ProjectDetailPage({
               <Card>
                 <CardBody>
                   <h3 className="font-semibold text-slate-900 mb-3">
-                    About This Project
+                    درباره این پروژه
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
                     {project.description}
@@ -363,7 +371,7 @@ export default function ProjectDetailPage({
               <Card>
                 <CardBody>
                   <h3 className="font-semibold text-slate-900 mb-3">
-                    Team Members ({project.memberCount}/{project.maxMembers})
+                    اعضای تیم ({project.memberCount}/{project.maxMembers})
                   </h3>
                   <div className="space-y-3">
                     {project.members.map((member) => (
@@ -380,14 +388,16 @@ export default function ProjectDetailPage({
                           <p className="text-sm font-medium text-slate-900">
                             {member.name}
                           </p>
-                          <p className="text-xs text-slate-500 capitalize">
-                            {member.role}
+                          <p className="text-xs text-slate-500">
+                            {messages.roles[
+                              member.role as "professor" | "student" | "admin"
+                            ] ?? member.role}
                             {member.department && ` · ${member.department}`}
                           </p>
                         </div>
                         {member.role === "professor" && (
                           <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
-                            PI
+                            استاد راهنما
                           </Badge>
                         )}
                       </div>
@@ -403,7 +413,7 @@ export default function ProjectDetailPage({
               <Card>
                 <CardBody>
                   <h3 className="font-semibold text-slate-900 mb-3 text-sm">
-                    Principal Investigator
+                    استاد راهنما
                   </h3>
                   <div className="flex items-center gap-3 mb-3">
                     <Avatar
@@ -416,7 +426,7 @@ export default function ProjectDetailPage({
                         {project.professorName}
                       </p>
                       <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 mt-0.5">
-                        Professor
+                        استاد
                       </Badge>
                     </div>
                   </div>
@@ -439,12 +449,12 @@ export default function ProjectDetailPage({
               <Card>
                 <CardBody>
                   <h3 className="font-semibold text-slate-900 mb-3 text-sm">
-                    Project Details
+                    جزئیات پروژه
                   </h3>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-500 flex items-center gap-2">
-                        <Users size={14} /> Members
+                        <Users size={14} /> اعضا
                       </span>
                       <span className="font-medium text-slate-900">
                         {project.memberCount}/{project.maxMembers}
@@ -453,7 +463,7 @@ export default function ProjectDetailPage({
                     {project.deadline && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-500 flex items-center gap-2">
-                          <Calendar size={14} /> Deadline
+                          <Calendar size={14} /> مهلت
                         </span>
                         <span className="font-medium text-slate-900">
                           {formatDate(project.deadline)}
@@ -461,7 +471,7 @@ export default function ProjectDetailPage({
                       </div>
                     )}
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500">Posted</span>
+                      <span className="text-slate-500">تاریخ ثبت</span>
                       <span className="font-medium text-slate-900">
                         {formatTimeAgo(project.createdAt)}
                       </span>
@@ -475,7 +485,7 @@ export default function ProjectDetailPage({
                 <Card>
                   <CardBody>
                     <h3 className="font-semibold text-slate-900 mb-3 text-sm">
-                      My Application
+                      درخواست من
                     </h3>
                     <Badge className={`${statusColor(myApp.status)} mb-3`}>
                       {statusLabel(myApp.status)}
@@ -486,7 +496,7 @@ export default function ProjectDetailPage({
                       </p>
                     )}
                     <p className="text-xs text-slate-400 mt-2">
-                      Applied {formatTimeAgo(myApp.createdAt)}
+                      ارسال‌شده {formatTimeAgo(myApp.createdAt)}
                     </p>
                   </CardBody>
                 </Card>
@@ -499,6 +509,31 @@ export default function ProjectDetailPage({
           <ChatPanel projectId={project.id} />
         )}
 
+        {activeTab === "files" && project.isMember && (
+          <div className="space-y-6 max-w-2xl">
+            <ProjectFiles
+              projectId={project.id}
+              context="document"
+              title="مستندات پروژه"
+              description="فایل‌های مرجع، مقالات و مستنداتی که تیم به آن‌ها نیاز دارد."
+              currentUserId={user?.id}
+              isOwner={isOwner}
+              canUpload={project.isMember}
+            />
+            {project.status === "completed" && (
+              <ProjectFiles
+                projectId={project.id}
+                context="deliverable"
+                title="تحویل نهایی پروژه"
+                description="فایل نهایی که در پایان پروژه تحویل داده می‌شود."
+                currentUserId={user?.id}
+                isOwner={isOwner}
+                canUpload={isOwner}
+              />
+            )}
+          </div>
+        )}
+
         {activeTab === "applications" && isOwner && (
           <ApplicationsPanel projectId={project.id} />
         )}
@@ -508,31 +543,33 @@ export default function ProjectDetailPage({
       <Modal
         isOpen={applyModal}
         onClose={() => setApplyModal(false)}
-        title="Apply to Project"
+        title="ارسال درخواست همکاری"
       >
         <div className="space-y-4">
           <div>
             <p className="text-sm text-slate-600 mb-1 font-medium">
               {project.title}
             </p>
-            <p className="text-xs text-slate-500">by {project.professorName}</p>
+            <p className="text-xs text-slate-500">
+              استاد: {project.professorName}
+            </p>
           </div>
           <Textarea
-            label="Cover Message (optional)"
-            placeholder="Tell the professor why you're interested and what you bring to this project..."
+            label="پیام همراه (اختیاری)"
+            placeholder="به استاد بگویید چرا به این پروژه علاقه‌مندید و چه مهارتی به آن اضافه می‌کنید..."
             value={applyMessage}
             onChange={(e) => setApplyMessage(e.target.value)}
             rows={5}
           />
           <div className="flex gap-3 justify-end">
             <Button variant="outline" onClick={() => setApplyModal(false)}>
-              Cancel
+              لغو
             </Button>
             <Button
               onClick={() => applyMutation.mutate(applyMessage)}
               loading={applyMutation.isPending}
             >
-              <Send size={16} /> Submit Application
+              <Send size={16} /> ارسال درخواست
             </Button>
           </div>
           {applyMutation.isError && (

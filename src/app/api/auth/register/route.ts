@@ -15,26 +15,9 @@ import {
   PASSWORD_MIN,
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
-
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS_PER_IP = 5;
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = getClientIp(req);
-    const ipKey = `register:ip:${ip}`;
-    const ipCheck = checkRateLimit(ipKey, MAX_ATTEMPTS_PER_IP, WINDOW_MS);
-
-    if (!ipCheck.allowed) {
-      const retryAfterSec = Math.ceil((ipCheck.resetAt - Date.now()) / 1000);
-      auditLog("register_rate_limited", { ip });
-      return NextResponse.json(
-        { error: "Too many registration attempts. Please try again later." },
-        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
-      );
-    }
-
     const body = await req.json();
     const {
       name,
@@ -54,7 +37,7 @@ export async function POST(req: NextRequest) {
     const cleanName = sanitizeName(name);
     if (!cleanName) {
       return NextResponse.json(
-        { error: "Name must be between 2 and 100 characters" },
+        { error: "نام باید بین ۲ تا ۱۰۰ کاراکتر باشد" },
         { status: 400 }
       );
     }
@@ -62,21 +45,21 @@ export async function POST(req: NextRequest) {
     const cleanEmail = sanitizeEmail(email);
     if (!cleanEmail) {
       return NextResponse.json(
-        { error: "Please provide a valid email address" },
+        { error: "لطفاً یک ایمیل معتبر وارد کنید" },
         { status: 400 }
       );
     }
 
     if (!isValidPassword(password)) {
       return NextResponse.json(
-        { error: `Password must be at least ${PASSWORD_MIN} characters` },
+        { error: `رمز عبور باید حداقل ${PASSWORD_MIN} کاراکتر باشد` },
         { status: 400 }
       );
     }
 
     if (!isValidDepartment(department)) {
       return NextResponse.json(
-        { error: "Please select a valid department" },
+        { error: "لطفاً یک گروه آموزشی معتبر انتخاب کنید" },
         { status: 400 }
       );
     }
@@ -84,20 +67,23 @@ export async function POST(req: NextRequest) {
     const universityResult = parseOptionalText(university, 255);
     if (!universityResult.ok) {
       return NextResponse.json(
-        { error: "University name is too long" },
+        { error: "نام دانشگاه بیش از حد طولانی است" },
         { status: 400 }
       );
     }
 
     const bioResult = parseOptionalText(bio, 1000);
     if (!bioResult.ok) {
-      return NextResponse.json({ error: "Bio is too long" }, { status: 400 });
+      return NextResponse.json(
+        { error: "بیوگرافی بیش از حد طولانی است" },
+        { status: 400 }
+      );
     }
 
     const cleanInterests = validateInterests(interests ?? []);
     if (cleanInterests === null) {
       return NextResponse.json(
-        { error: "Interests must be a list of short, valid labels" },
+        { error: "علایق باید فهرستی از برچسب‌های کوتاه و معتبر باشند" },
         { status: 400 }
       );
     }
@@ -107,7 +93,7 @@ export async function POST(req: NextRequest) {
     );
     if (cleanLanguages === null) {
       return NextResponse.json(
-        { error: "One or more programming languages are invalid" },
+        { error: "یک یا چند زبان برنامه‌نویسی نامعتبر است" },
         { status: 400 }
       );
     }
@@ -119,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       return NextResponse.json(
-        { error: "Email already registered" },
+        { error: "این ایمیل قبلاً ثبت شده است" },
         { status: 409 }
       );
     }
@@ -187,9 +173,6 @@ export async function POST(req: NextRequest) {
     return response;
   } catch (error) {
     console.error("Register error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

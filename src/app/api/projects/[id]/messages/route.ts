@@ -16,7 +16,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const authUser = await getAuthUser();
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
@@ -24,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     if (!Number.isInteger(projectId) || projectId <= 0) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
@@ -53,7 +56,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       );
 
     if (!ownedProject && !isMember) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      return NextResponse.json({ error: "دسترسی رد شد" }, { status: 403 });
     }
 
     const recentMessages = await db
@@ -81,10 +84,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ messages });
   } catch (error) {
     console.error("Messages GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }
 
@@ -92,7 +92,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const authUser = await getAuthUser();
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
@@ -100,7 +103,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (!Number.isInteger(projectId) || projectId <= 0) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
@@ -110,14 +113,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (!content) {
       return NextResponse.json(
-        { error: "Message content required" },
+        { error: "متن پیام الزامی است" },
         { status: 400 }
       );
     }
 
     if (content.length > 2000) {
       return NextResponse.json(
-        { error: "Message is too long" },
+        { error: "متن پیام بیش از حد طولانی است" },
         { status: 400 }
       );
     }
@@ -130,7 +133,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
     if (!rl.allowed) {
       return NextResponse.json(
-        { error: "You're sending messages too quickly. Please slow down." },
+        { error: "پیام‌های شما خیلی سریع ارسال می‌شود. لطفاً کمی صبر کنید." },
         { status: 429, headers: { "Retry-After": "60" } }
       );
     }
@@ -147,7 +150,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
 
     if (!isMember) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      return NextResponse.json({ error: "دسترسی رد شد" }, { status: 403 });
     }
 
     const [message] = await db
@@ -178,9 +181,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
   } catch (error) {
     console.error("Messages POST error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

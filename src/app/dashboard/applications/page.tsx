@@ -20,7 +20,7 @@ import {
   CheckCircle2,
   XCircle,
   X,
-  ArrowRight,
+  ArrowLeft,
   GraduationCap,
 } from "lucide-react";
 import Link from "next/link";
@@ -42,11 +42,11 @@ interface Application {
 }
 
 const STATUS_FILTERS = [
-  { label: "All", value: "all" },
-  { label: "Pending", value: "pending" },
-  { label: "Approved", value: "approved" },
-  { label: "Rejected", value: "rejected" },
-  { label: "Cancelled", value: "cancelled" },
+  { label: "همه", value: "all" },
+  { label: "در انتظار", value: "pending" },
+  { label: "تأییدشده", value: "approved" },
+  { label: "ردشده", value: "rejected" },
+  { label: "لغوشده", value: "cancelled" },
 ];
 
 const statusIcons: Record<string, React.ElementType> = {
@@ -65,7 +65,7 @@ export default function ApplicationsPage() {
     queryKey: ["my-applications"],
     queryFn: async () => {
       const res = await fetch("/api/applications");
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("خطا در دریافت اطلاعات");
       return res.json() as Promise<{ applications: Application[] }>;
     },
     enabled: user?.role === "student",
@@ -87,7 +87,7 @@ export default function ApplicationsPage() {
           body: JSON.stringify({ status: "cancelled" }),
         }
       );
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("خطا در انجام درخواست");
       return res.json();
     },
     onSuccess: () => {
@@ -105,8 +105,8 @@ export default function ApplicationsPage() {
   return (
     <div>
       <TopBar
-        title="My Applications"
-        subtitle="Track the status of your project applications"
+        title="درخواست‌های من"
+        subtitle="وضعیت درخواست‌های همکاری خود را پیگیری کنید"
       />
 
       <div className="p-6 space-y-5">
@@ -125,7 +125,7 @@ export default function ApplicationsPage() {
             >
               {f.label}
               {f.value !== "all" && (
-                <span className="ml-1.5 text-xs opacity-60">
+                <span className="ms-1.5 text-xs opacity-60">
                   {apps.filter((a) => a.status === f.value).length}
                 </span>
               )}
@@ -147,19 +147,19 @@ export default function ApplicationsPage() {
             icon={FileText}
             title={
               statusFilter === "all"
-                ? "No applications yet"
-                : `No ${statusFilter} applications`
+                ? "هنوز درخواستی ارسال نشده"
+                : `درخواستی با وضعیت «${statusLabel(statusFilter)}» یافت نشد`
             }
             description={
               statusFilter === "all"
-                ? "Browse research projects and apply to ones that match your interests"
-                : "No applications match this status"
+                ? "پروژه‌های پژوهشی را مرور کنید و برای موارد متناسب با علاقه خود درخواست دهید"
+                : "درخواستی مطابق این وضعیت یافت نشد"
             }
             action={
               statusFilter === "all" ? (
                 <Link href="/dashboard/projects">
                   <Button>
-                    <ArrowRight size={16} /> Browse Projects
+                    <ArrowLeft size={16} /> مرور پروژه‌ها
                   </Button>
                 </Link>
               ) : undefined
@@ -202,7 +202,7 @@ export default function ApplicationsPage() {
                             {app.projectTitle}
                           </h3>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            by {app.professorName}
+                            استاد: {app.professorName}
                             {app.professorDepartment &&
                               ` · ${app.professorDepartment}`}
                           </p>
@@ -219,16 +219,18 @@ export default function ApplicationsPage() {
                       {app.message && (
                         <div className="bg-slate-50 rounded-lg p-3 mb-3">
                           <p className="text-xs text-slate-600 italic">
-                            Your note: "{app.message}"
+                            یادداشت شما: «{app.message}»
                           </p>
                         </div>
                       )}
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 text-xs text-slate-400">
-                          <span>Applied {formatTimeAgo(app.createdAt)}</span>
+                          <span>ارسال {formatTimeAgo(app.createdAt)}</span>
                           {app.status !== "pending" && (
-                            <span>Updated {formatTimeAgo(app.updatedAt)}</span>
+                            <span>
+                              به‌روزرسانی {formatTimeAgo(app.updatedAt)}
+                            </span>
                           )}
                         </div>
 
@@ -245,12 +247,12 @@ export default function ApplicationsPage() {
                               }
                               loading={cancelMutation.isPending}
                             >
-                              Cancel
+                              لغو درخواست
                             </Button>
                           )}
                           <Link href={`/dashboard/projects/${app.projectId}`}>
                             <Button variant="ghost" size="sm">
-                              View Project <ArrowRight size={12} />
+                              مشاهده پروژه <ArrowLeft size={12} />
                             </Button>
                           </Link>
                         </div>

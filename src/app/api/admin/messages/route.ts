@@ -16,9 +16,9 @@ async function getScope(adminId: number) {
 export async function GET(req: NextRequest) {
   const user = await getAuthUser();
   if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "احراز هویت نشده‌اید" }, { status: 401 });
   if (user.role !== "admin" && user.role !== "professor")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const professorIdParam = searchParams.get("professorId");
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     const allowed = professors.some((p) => p.id === professorId);
     if (!allowed)
       return NextResponse.json(
-        { error: "Professor is outside your department scope" },
+        { error: "این استاد خارج از محدوده گروه‌های آموزشی شماست" },
         { status: 403 }
       );
     const messages = await db
@@ -124,9 +124,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getAuthUser();
   if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "احراز هویت نشده‌اید" }, { status: 401 });
   if (user.role !== "admin" && user.role !== "professor")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       !content ||
       content.length > 2000
     )
-      return NextResponse.json({ error: "Invalid message" }, { status: 400 });
+      return NextResponse.json({ error: "پیام نامعتبر است" }, { status: 400 });
 
     const [recipient] = await db
       .select({ id: users.id, role: users.role, department: users.department })
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
       .where(eq(users.id, recipientId));
     if (!recipient)
       return NextResponse.json(
-        { error: "Recipient not found" },
+        { error: "گیرنده پیام یافت نشد" },
         { status: 404 }
       );
 
@@ -157,13 +157,13 @@ export async function POST(req: NextRequest) {
         !scope.includes(recipient.department)
       )
         return NextResponse.json(
-          { error: "You can only message professors in your departments" },
+          { error: "فقط می‌توانید به استادان گروه‌های آموزشی خود پیام دهید" },
           { status: 403 }
         );
     } else {
       if (recipient.role !== "admin") {
         return NextResponse.json(
-          { error: "Professors can only message admins" },
+          { error: "استادان فقط می‌توانند به مدیران پیام دهند" },
           { status: 403 }
         );
       }
@@ -172,10 +172,7 @@ export async function POST(req: NextRequest) {
         .from(users)
         .where(eq(users.id, user.userId));
       if (!professor)
-        return NextResponse.json(
-          { error: "Professor not found" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "استاد یافت نشد" }, { status: 404 });
       const sharedScope = await db
         .select({ adminId: adminDepartments.adminId })
         .from(adminDepartments)
@@ -187,7 +184,7 @@ export async function POST(req: NextRequest) {
         );
       if (sharedScope.length === 0) {
         return NextResponse.json(
-          { error: "You can only message your department admin" },
+          { error: "فقط می‌توانید به مدیر گروه آموزشی خود پیام دهید" },
           { status: 403 }
         );
       }
@@ -200,9 +197,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message }, { status: 201 });
   } catch (error) {
     console.error("Direct messages error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

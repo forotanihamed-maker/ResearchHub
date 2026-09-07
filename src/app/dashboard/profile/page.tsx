@@ -11,7 +11,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { X, Plus, Save, GraduationCap, Mail } from "lucide-react";
+import { X, Plus, Save, GraduationCap, Mail, KeyRound } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import {
   DEPARTMENTS,
@@ -77,7 +77,7 @@ export default function ProfilePage() {
           interests,
         }),
       });
-      if (!res.ok) throw new Error("Failed to update profile");
+      if (!res.ok) throw new Error("به‌روزرسانی پروفایل ناموفق بود");
       return res.json();
     },
     onSuccess: async () => {
@@ -99,7 +99,7 @@ export default function ProfilePage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to change password");
+      if (!res.ok) throw new Error(data.error || "تغییر رمز عبور ناموفق بود");
       return data;
     },
     onSuccess: () => {
@@ -121,15 +121,15 @@ export default function ProfilePage() {
     setPasswordFormError(null);
 
     if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      setPasswordFormError("Please fill in all password fields");
+      setPasswordFormError("لطفاً همه‌ی فیلدهای رمز عبور را پر کنید");
       return;
     }
     if (passwordForm.newPassword.length < 8) {
-      setPasswordFormError("New password must be at least 8 characters");
+      setPasswordFormError("رمز عبور جدید باید حداقل ۸ کاراکتر باشد");
       return;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordFormError("New password and confirmation do not match");
+      setPasswordFormError("رمز عبور جدید و تکرار آن یکسان نیستند");
       return;
     }
 
@@ -161,8 +161,8 @@ export default function ProfilePage() {
   return (
     <div>
       <TopBar
-        title="Profile Settings"
-        subtitle="Manage your account and preferences"
+        title="تنظیمات پروفایل"
+        subtitle="حساب کاربری و تنظیمات خود را مدیریت کنید"
       />
 
       <div className="p-6 max-w-2xl space-y-5">
@@ -183,8 +183,8 @@ export default function ProfilePage() {
                         : "bg-emerald-100 text-emerald-700 border-emerald-200"
                     }
                   >
-                    <GraduationCap size={11} className="mr-1" />
-                    {user.role === "professor" ? "Professor" : "Student"}
+                    <GraduationCap size={11} className="me-1" />
+                    {user.role === "professor" ? "استاد" : "دانشجو"}
                   </Badge>
                   <span className="text-sm text-slate-500 flex items-center gap-1 min-w-0">
                     <Mail size={12} className="shrink-0" />
@@ -192,21 +192,21 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  Member since {formatDate(user.createdAt)}
+                  عضویت از {formatDate(user.createdAt)}
                 </p>
               </div>
             </div>
 
             <div className="space-y-4">
               <Input
-                label="Full Name"
+                label="نام و نام‌خانوادگی"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
 
               <Textarea
-                label="Bio"
-                placeholder="Tell others about yourself, your research interests, and expertise..."
+                label="بیوگرافی"
+                placeholder="درباره خود، علایق پژوهشی و تخصص‌تان برای دیگران بنویسید..."
                 value={form.bio}
                 onChange={(e) => setForm({ ...form, bio: e.target.value })}
                 rows={4}
@@ -215,7 +215,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Department
+                    گروه آموزشی
                   </label>
                   <select
                     value={form.department}
@@ -224,7 +224,7 @@ export default function ProfilePage() {
                     }
                     className="w-full rounded-lg border px-3 py-2.5 text-base sm:text-sm text-slate-900 border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">Select department</option>
+                    <option value="">انتخاب گروه آموزشی</option>
                     {DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>
                         {dept}
@@ -233,8 +233,8 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <Input
-                  label="University"
-                  placeholder="e.g., MIT"
+                  label="دانشگاه"
+                  placeholder="مثلاً: دانشگاه علم و صنعت ایران"
                   value={form.university}
                   onChange={(e) =>
                     setForm({ ...form, university: e.target.value })
@@ -250,10 +250,10 @@ export default function ProfilePage() {
           <CardBody>
             <div className="mb-4">
               <h3 className="font-semibold text-slate-900">
-                Programming Languages
+                زبان‌های برنامه‌نویسی
               </h3>
               <p className="text-sm text-slate-500 mt-0.5">
-                Languages you're comfortable working with
+                زبان‌هایی که با آن‌ها راحت کار می‌کنید
               </p>
             </div>
 
@@ -284,12 +284,10 @@ export default function ProfilePage() {
         <Card>
           <CardBody>
             <div className="mb-4">
-              <h3 className="font-semibold text-slate-900">
-                Research Interests
-              </h3>
+              <h3 className="font-semibold text-slate-900">علایق پژوهشی</h3>
               <p className="text-sm text-slate-500 mt-0.5">
-                Short labels like &quot;Machine Learning&quot; or &quot;Web
-                Security&quot; (up to {MAX_INTERESTS})
+                برچسب‌های کوتاه مثل «یادگیری ماشین» یا «امنیت وب» (حداکثر{" "}
+                {MAX_INTERESTS} مورد)
               </p>
             </div>
 
@@ -322,11 +320,11 @@ export default function ProfilePage() {
                     }
                   }}
                   maxLength={INTEREST_MAX_LEN}
-                  placeholder="Add an interest..."
+                  placeholder="یک علاقه‌مندی اضافه کنید..."
                   className="flex-1 rounded-lg border px-3 py-2 text-base sm:text-sm border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <Button type="button" variant="outline" onClick={addInterest}>
-                  <Plus size={14} /> Add
+                  <Plus size={14} /> افزودن
                 </Button>
               </div>
             )}
@@ -337,15 +335,15 @@ export default function ProfilePage() {
         <Card>
           <CardBody>
             <div className="mb-4">
-              <h3 className="font-semibold text-slate-900">Change Password</h3>
+              <h3 className="font-semibold text-slate-900">تغییر رمز عبور</h3>
               <p className="text-sm text-slate-500 mt-0.5">
-                You&apos;ll need your current password to set a new one
+                برای تعیین رمز عبور جدید، رمز عبور فعلی خود را نیز وارد کنید
               </p>
             </div>
 
             <div className="space-y-3 max-w-sm">
               <Input
-                label="Current Password"
+                label="رمز عبور فعلی"
                 type="password"
                 value={passwordForm.currentPassword}
                 onChange={(e) =>
@@ -356,7 +354,7 @@ export default function ProfilePage() {
                 }
               />
               <Input
-                label="New Password"
+                label="رمز عبور جدید"
                 type="password"
                 value={passwordForm.newPassword}
                 onChange={(e) =>
@@ -367,7 +365,7 @@ export default function ProfilePage() {
                 }
               />
               <Input
-                label="Confirm New Password"
+                label="تکرار رمز عبور جدید"
                 type="password"
                 value={passwordForm.confirmPassword}
                 onChange={(e) =>
@@ -388,7 +386,7 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3 justify-end mt-4">
               {passwordSaved && (
                 <span className="text-sm text-emerald-600 font-medium">
-                  ✓ Password updated!
+                  ✓ رمز عبور به‌روزرسانی شد!
                 </span>
               )}
               <Button
@@ -396,7 +394,7 @@ export default function ProfilePage() {
                 onClick={submitPasswordChange}
                 loading={passwordMutation.isPending}
               >
-                Update Password
+                <KeyRound size={16} /> به‌روزرسانی رمز عبور
               </Button>
             </div>
           </CardBody>
@@ -405,21 +403,21 @@ export default function ProfilePage() {
         {/* Save button */}
         {mutation.isError && (
           <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg border border-red-200">
-            Failed to save. Please try again.
+            ذخیره‌سازی ناموفق بود. لطفاً دوباره تلاش کنید.
           </div>
         )}
 
         <div className="flex items-center gap-3 justify-end">
           {saved && (
             <span className="text-sm text-emerald-600 font-medium">
-              ✓ Profile saved!
+              ✓ پروفایل ذخیره شد!
             </span>
           )}
           <Button
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
           >
-            <Save size={16} /> Save Changes
+            <Save size={16} /> ذخیره تغییرات
           </Button>
         </div>
       </div>

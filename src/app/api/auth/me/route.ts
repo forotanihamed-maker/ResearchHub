@@ -29,7 +29,7 @@ export async function GET() {
     const authUser = await getAuthUser();
 
     if (!authUser) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+      return jsonResponse({ error: "احراز هویت نشده‌اید" }, 401);
     }
 
     const [user] = await db
@@ -52,7 +52,7 @@ export async function GET() {
       .limit(1);
 
     if (!user) {
-      return jsonResponse({ error: "User not found" }, 404);
+      return jsonResponse({ error: "کاربر یافت نشد" }, 404);
     }
 
     return jsonResponse({ user });
@@ -61,7 +61,7 @@ export async function GET() {
 
     return jsonResponse(
       {
-        error: "Internal server error",
+        error: "خطای داخلی سرور",
       },
       500
     );
@@ -73,7 +73,7 @@ export async function PATCH(req: Request) {
     const authUser = await getAuthUser();
 
     if (!authUser) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+      return jsonResponse({ error: "احراز هویت نشده‌اید" }, 401);
     }
 
     let body: Record<string, unknown>;
@@ -81,7 +81,7 @@ export async function PATCH(req: Request) {
     try {
       body = await req.json();
     } catch {
-      return jsonResponse({ error: "Invalid JSON request body" }, 400);
+      return jsonResponse({ error: "بدنه درخواست JSON نامعتبر است" }, 400);
     }
 
     const {
@@ -111,7 +111,7 @@ export async function PATCH(req: Request) {
 
     if (name !== undefined) {
       if (typeof name !== "string") {
-        return jsonResponse({ error: "Name must be a string" }, 400);
+        return jsonResponse({ error: "نام باید متن باشد" }, 400);
       }
 
       const cleanName = sanitizeName(name);
@@ -119,7 +119,7 @@ export async function PATCH(req: Request) {
       if (!cleanName) {
         return jsonResponse(
           {
-            error: "Name must be between 2 and 100 characters",
+            error: "نام باید بین ۲ تا ۱۰۰ کاراکتر باشد",
           },
           400
         );
@@ -136,7 +136,7 @@ export async function PATCH(req: Request) {
       if (typeof department !== "string" || !isValidDepartment(department)) {
         return jsonResponse(
           {
-            error: "Please select a valid department",
+            error: "لطفاً یک گروه آموزشی معتبر انتخاب کنید",
           },
           400
         );
@@ -151,13 +151,13 @@ export async function PATCH(req: Request) {
 
     if (bio !== undefined) {
       if (bio !== null && typeof bio !== "string") {
-        return jsonResponse({ error: "Bio must be a string" }, 400);
+        return jsonResponse({ error: "بیوگرافی باید متن باشد" }, 400);
       }
 
       const result = parseOptionalText(bio, 1000);
 
       if (!result.ok) {
-        return jsonResponse({ error: "Bio is too long" }, 400);
+        return jsonResponse({ error: "بیوگرافی بیش از حد طولانی است" }, 400);
       }
 
       updateData.bio = result.value;
@@ -171,7 +171,7 @@ export async function PATCH(req: Request) {
       if (university !== null && typeof university !== "string") {
         return jsonResponse(
           {
-            error: "University must be a string",
+            error: "نام دانشگاه باید متن باشد",
           },
           400
         );
@@ -182,7 +182,7 @@ export async function PATCH(req: Request) {
       if (!result.ok) {
         return jsonResponse(
           {
-            error: "University name is too long",
+            error: "نام دانشگاه بیش از حد طولانی است",
           },
           400
         );
@@ -199,7 +199,7 @@ export async function PATCH(req: Request) {
       if (!Array.isArray(interests)) {
         return jsonResponse(
           {
-            error: "Interests must be a list of short, valid labels",
+            error: "علایق باید فهرستی از برچسب‌های کوتاه و معتبر باشند",
           },
           400
         );
@@ -210,7 +210,7 @@ export async function PATCH(req: Request) {
       if (validated === null) {
         return jsonResponse(
           {
-            error: "Interests must be a list of short, valid labels",
+            error: "علایق باید فهرستی از برچسب‌های کوتاه و معتبر باشند",
           },
           400
         );
@@ -227,7 +227,7 @@ export async function PATCH(req: Request) {
       if (!Array.isArray(programmingLanguages)) {
         return jsonResponse(
           {
-            error: "Programming languages must be a list",
+            error: "زبان‌های برنامه‌نویسی باید به‌صورت فهرست باشند",
           },
           400
         );
@@ -238,7 +238,7 @@ export async function PATCH(req: Request) {
       if (validated === null) {
         return jsonResponse(
           {
-            error: "One or more programming languages are invalid",
+            error: "یک یا چند زبان برنامه‌نویسی نامعتبر است",
           },
           400
         );
@@ -271,7 +271,7 @@ export async function PATCH(req: Request) {
       });
 
     if (!updatedUser) {
-      return jsonResponse({ error: "User not found" }, 404);
+      return jsonResponse({ error: "کاربر یافت نشد" }, 404);
     }
 
     return jsonResponse({
@@ -283,7 +283,7 @@ export async function PATCH(req: Request) {
 
     return jsonResponse(
       {
-        error: "Internal server error",
+        error: "خطای داخلی سرور",
       },
       500
     );

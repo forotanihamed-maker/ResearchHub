@@ -11,6 +11,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.101.3",
     "@types/jsonwebtoken": "^9.0.10",
+    "@vercel/blob": "^0.27.1",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",

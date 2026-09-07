@@ -84,12 +84,12 @@ export function ProjectCard({
         <div className="flex items-center gap-4 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
             <Users size={12} />
-            {project.memberCount}/{project.maxMembers} members
+            {project.memberCount}/{project.maxMembers} عضو
           </span>
           {project.deadline && (
             <span className="flex items-center gap-1.5">
               <Calendar size={12} />
-              Due {formatDate(project.deadline)}
+              مهلت: {formatDate(project.deadline)}
             </span>
           )}
         </div>
@@ -106,12 +106,12 @@ export function ProjectCard({
             project.pendingApplications &&
             project.pendingApplications > 0 ? (
               <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                {project.pendingApplications} pending
+                {project.pendingApplications} در انتظار
               </span>
             ) : null}
             <Link href={`/dashboard/projects/${project.id}`}>
               <Button size="sm" variant="outline">
-                View <ArrowRight size={12} />
+                مشاهده <ArrowRight size={12} className="rtl:rotate-180" />
               </Button>
             </Link>
           </div>

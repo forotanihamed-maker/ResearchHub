@@ -72,26 +72,26 @@ export default function AdminMessagesPage() {
   return (
     <div>
       <TopBar
-        title="Professor Messages"
-        subtitle="Direct communication with professors in your managed departments"
+        title="پیام به استادان"
+        subtitle="ارتباط مستقیم با استادان گروه‌های آموزشی تحت مدیریت شما"
       />
       <main className="p-6 lg:p-8">
         <div className="grid h-[calc(100vh-180px)] min-h-[520px] grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-4">
           {" "}
-          <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r">
+          <aside className="border-b border-slate-200 lg:border-b-0 lg:border-e">
             <div className="border-b border-slate-100 p-4">
-              <p className="font-semibold text-slate-900">Professors</p>
-              <p className="text-xs text-slate-500">Only your departments</p>
+              <p className="font-semibold text-slate-900">استادان</p>
+              <p className="text-xs text-slate-500">فقط گروه‌های آموزشی شما</p>
             </div>
             <div className="divide-y divide-slate-100 overflow-y-auto">
               {loading ? (
-                <p className="p-4 text-sm text-slate-500">Loading...</p>
+                <p className="p-4 text-sm text-slate-500">در حال بارگذاری...</p>
               ) : (
                 professors.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => selectProfessor(p.id)}
-                    className={`w-full p-4 text-left hover:bg-slate-50 ${
+                    className={`w-full p-4 text-start hover:bg-slate-50 ${
                       selected === p.id ? "bg-indigo-50" : ""
                     }`}
                   >
@@ -127,7 +127,7 @@ export default function AdminMessagesPage() {
                     <div className="flex h-full items-center justify-center text-center text-slate-400">
                       <div>
                         <MessageSquare size={34} className="mx-auto mb-2" />
-                        <p className="text-sm">No messages yet</p>
+                        <p className="text-sm">هنوز پیامی ارسال نشده</p>
                       </div>
                     </div>
                   ) : (
@@ -136,7 +136,7 @@ export default function AdminMessagesPage() {
                         key={m.id}
                         className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
                           m.senderId !== current.id
-                            ? "ml-auto bg-indigo-600 text-white"
+                            ? "ms-auto bg-indigo-600 text-white"
                             : "bg-white text-slate-700 border border-slate-200"
                         }`}
                       >
@@ -156,7 +156,7 @@ export default function AdminMessagesPage() {
                           send();
                         }
                       }}
-                      placeholder="Write a message..."
+                      placeholder="پیام خود را بنویسید..."
                       className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-indigo-400"
                     />
                     <button
@@ -171,7 +171,7 @@ export default function AdminMessagesPage() {
               </>
             ) : (
               <div className="flex h-full items-center justify-center text-slate-400">
-                Select a professor to start a conversation.
+                برای شروع گفتگو یک استاد را انتخاب کنید.
               </div>
             )}
           </section>

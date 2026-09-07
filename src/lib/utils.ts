@@ -9,10 +9,12 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(date: string | Date | null | undefined): string {
   if (!date) return "—";
   const d = new Date(date);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
+  return d.toLocaleDateString("fa-IR", {
+    month: "long",
     day: "numeric",
     year: "numeric",
+    calendar: "gregory",
+    numberingSystem: "latn",
   });
 }
 
@@ -27,10 +29,16 @@ export function formatTimeAgo(date: string | Date | null | undefined): string {
   const days = Math.floor(hours / 24);
 
   if (days > 30) return formatDate(date);
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return "just now";
+  if (days > 0) return `${days} روز پیش`;
+  if (hours > 0) return `${hours} ساعت پیش`;
+  if (minutes > 0) return `${minutes} دقیقه پیش`;
+  return "لحظاتی پیش";
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} بایت`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} کیلوبایت`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} مگابایت`;
 }
 
 export function getInitials(name: string): string {
@@ -66,19 +74,19 @@ export function statusColor(status: string): string {
 export function statusLabel(status: string): string {
   switch (status) {
     case "open":
-      return "Open";
+      return "باز";
     case "in_progress":
-      return "In Progress";
+      return "در حال انجام";
     case "completed":
-      return "Completed";
+      return "تکمیل‌شده";
     case "pending":
-      return "Pending";
+      return "در انتظار بررسی";
     case "approved":
-      return "Approved";
+      return "پذیرفته‌شده";
     case "rejected":
-      return "Rejected";
+      return "رد شده";
     case "cancelled":
-      return "Cancelled";
+      return "لغو شده";
     default:
       return status;
   }

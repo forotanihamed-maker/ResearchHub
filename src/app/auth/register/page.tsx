@@ -36,7 +36,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.role) {
-      setError("Please select your role");
+      setError("لطفاً نقش خود را انتخاب کنید");
       return;
     }
     setError("");
@@ -59,7 +59,7 @@ export default function RegisterPage() {
       }
       router.push("/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(err instanceof Error ? err.message : "ثبت‌نام ناموفق بود");
     } finally {
       setLoading(false);
     }
@@ -68,8 +68,8 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute top-0 end-0 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 start-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
       </div>
 
       <div className="relative w-full max-w-md">
@@ -78,23 +78,25 @@ export default function RegisterPage() {
             <FlaskConical size={28} className="text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-1">ResearchHub</h1>
-          <p className="text-slate-400 text-sm">Join the research community</p>
+          <p className="text-slate-400 text-sm">به جامعه پژوهشی بپیوندید</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="text-xl font-bold text-slate-900 mb-6">
-            Create your account
+            ساخت حساب کاربری
           </h2>
 
           {/* Role selection */}
           <div className="mb-5">
-            <p className="text-sm font-medium text-slate-700 mb-3">I am a...</p>
+            <p className="text-sm font-medium text-slate-700 mb-3">
+              من هستم یک...
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setForm({ ...form, role: "professor" })}
                 className={cn(
-                  "p-4 rounded-xl border-2 text-left transition-all",
+                  "p-4 rounded-xl border-2 text-start transition-all",
                   form.role === "professor"
                     ? "border-indigo-600 bg-indigo-50"
                     : "border-slate-200 hover:border-indigo-300"
@@ -116,10 +118,10 @@ export default function RegisterPage() {
                       : "text-slate-700"
                   )}
                 >
-                  Professor
+                  استاد
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Post research projects
+                  ثبت پروژه‌های پژوهشی
                 </p>
               </button>
 
@@ -127,7 +129,7 @@ export default function RegisterPage() {
                 type="button"
                 onClick={() => setForm({ ...form, role: "student" })}
                 className={cn(
-                  "p-4 rounded-xl border-2 text-left transition-all",
+                  "p-4 rounded-xl border-2 text-start transition-all",
                   form.role === "student"
                     ? "border-emerald-600 bg-emerald-50"
                     : "border-slate-200 hover:border-emerald-300"
@@ -149,10 +151,10 @@ export default function RegisterPage() {
                       : "text-slate-700"
                   )}
                 >
-                  Student
+                  دانشجو
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Apply to projects
+                  درخواست همکاری در پروژه‌ها
                 </p>
               </button>
             </div>
@@ -160,15 +162,15 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <Input
-              label="Full Name"
-              placeholder="Dr. Jane Smith"
+              label="نام و نام‌خانوادگی"
+              placeholder="مثلاً: دکتر علی محمدی"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
             />
 
             <Input
-              label="Email address"
+              label="ایمیل"
               type="email"
               placeholder="you@university.edu"
               value={form.email}
@@ -178,9 +180,9 @@ export default function RegisterPage() {
 
             <div className="relative">
               <Input
-                label="Password"
+                label="رمز عبور"
                 type={showPw ? "text" : "password"}
-                placeholder="Min. 8 characters"
+                placeholder="حداقل ۸ کاراکتر"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
@@ -189,7 +191,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowPw((v) => !v)}
-                className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600"
+                className="absolute end-3 top-[34px] text-slate-400 hover:text-slate-600"
               >
                 {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -239,17 +241,17 @@ export default function RegisterPage() {
               size="lg"
               loading={loading}
             >
-              Create Account
+              ساخت حساب کاربری
             </Button>
           </form>
 
           <p className="text-center text-sm text-slate-600 mt-5">
-            Already have an account?{" "}
+            قبلاً ثبت‌نام کرده‌اید؟{" "}
             <Link
               href="/auth/login"
               className="text-indigo-600 hover:underline font-medium"
             >
-              Sign in
+              ورود
             </Link>
           </p>
         </div>

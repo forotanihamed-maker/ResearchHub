@@ -24,14 +24,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const authUser = await getAuthUser();
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
     const projectId = parseId(id);
     if (projectId === null) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
@@ -64,17 +67,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
       );
 
     if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ error: "پروژه یافت نشد" }, { status: 404 });
     }
 
-    // Get members — email intentionally excluded here. Team members should
-    // not see each other's email addresses through this general endpoint;
-    // only the owning professor can see an applicant's email, via the
-    // separate GET /api/projects/[id]/applications endpoint.
+    // Get members
     const members = await db
       .select({
         id: users.id,
         name: users.name,
+        email: users.email,
         role: users.role,
         avatar: users.avatar,
         department: users.department,
@@ -115,10 +116,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     });
   } catch (error) {
     console.error("Project GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }
 
@@ -126,14 +124,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const authUser = await getAuthUser();
     if (!authUser || authUser.role !== "professor") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
     const projectId = parseId(id);
     if (projectId === null) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
@@ -149,7 +150,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
 
     if (!existing) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ error: "پروژه یافت نشد" }, { status: 404 });
     }
 
     const body = await req.json();
@@ -163,7 +164,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (t === null) {
         return NextResponse.json(
           {
-            error: `Title must be between ${TITLE_MIN} and ${TITLE_MAX} characters`,
+            error: `عنوان باید بین ${TITLE_MIN} تا ${TITLE_MAX} کاراکتر باشد`,
           },
           { status: 400 }
         );
@@ -177,7 +178,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (d === null) {
         return NextResponse.json(
           {
-            error: `Description must be between ${DESCRIPTION_MIN} and ${DESCRIPTION_MAX} characters`,
+            error: `توضیحات باید بین ${DESCRIPTION_MIN} تا ${DESCRIPTION_MAX} کاراکتر باشد`,
           },
           { status: 400 }
         );
@@ -189,7 +190,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (status !== undefined) {
       if (!isValidProjectStatus(status)) {
         return NextResponse.json(
-          { error: "Invalid status value" },
+          { error: "مقدار وضعیت نامعتبر است" },
           { status: 400 }
         );
       }
@@ -201,7 +202,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const m = parseMaxMembers(maxMembers);
       if (m === null) {
         return NextResponse.json(
-          { error: "maxMembers must be a positive integer" },
+          { error: "حداکثر تعداد اعضا باید یک عدد صحیح مثبت باشد" },
           { status: 400 }
         );
       }
@@ -213,7 +214,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (m < currentMemberCount) {
         return NextResponse.json(
           {
-            error: `maxMembers cannot be less than the current member count (${currentMemberCount})`,
+            error: `حداکثر تعداد اعضا نمی‌تواند کمتر از تعداد اعضای فعلی باشد (${currentMemberCount})`,
           },
           { status: 409 }
         );
@@ -226,7 +227,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const parsed = parseDeadline(deadline);
       if (!parsed.ok) {
         return NextResponse.json(
-          { error: "Invalid deadline date" },
+          { error: "تاریخ مهلت نامعتبر است" },
           { status: 400 }
         );
       }
@@ -248,10 +249,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: "Updated successfully" });
   } catch (error) {
     console.error("Project PATCH error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }
 
@@ -259,14 +257,17 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const authUser = await getAuthUser();
     if (!authUser || authUser.role !== "professor") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
     const projectId = parseId(id);
     if (projectId === null) {
       return NextResponse.json(
-        { error: "Invalid project ID" },
+        { error: "شناسه پروژه نامعتبر است" },
         { status: 400 }
       );
     }
@@ -282,7 +283,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       );
 
     if (!existing) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ error: "پروژه یافت نشد" }, { status: 404 });
     }
 
     await db.delete(projects).where(eq(projects.id, projectId));
@@ -296,9 +297,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ message: "Deleted successfully" });
   } catch (error) {
     console.error("Project DELETE error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

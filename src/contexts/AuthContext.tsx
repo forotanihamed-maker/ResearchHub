@@ -156,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
-      throw new Error("Email and password are required");
+      throw new Error("ایمیل و رمز عبور الزامی است");
     }
 
     const response = await fetch("/api/auth/login", {
@@ -190,12 +190,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!response.ok) {
-      throw new Error(getApiErrorMessage(data, "Login failed"));
+      throw new Error(getApiErrorMessage(data, "ورود ناموفق بود"));
     }
 
     if (!data.user) {
       console.error("Login API response:", data);
-      throw new Error("Login succeeded but no user data was returned.");
+      throw new Error("ورود موفق بود اما اطلاعات کاربر دریافت نشد.");
     }
 
     setUser(data.user);
@@ -233,17 +233,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!response.ok) {
-      throw new Error(getApiErrorMessage(data, "Registration failed"));
+      throw new Error(getApiErrorMessage(data, "ثبت‌نام ناموفق بود"));
     }
 
     if (data.pendingApproval) {
       throw new Error(
-        data.message || "Your professor account is awaiting admin approval."
+        data.message || "حساب استاد شما در انتظار تأیید مدیر است."
       );
     }
 
     if (!data.user) {
-      throw new Error("Registration succeeded but no user data was returned.");
+      throw new Error("ثبت‌نام موفق بود اما اطلاعات کاربر دریافت نشد.");
     }
 
     setUser(data.user);
@@ -269,7 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             message?: string;
           }>(response);
 
-          throw new Error(getApiErrorMessage(data, "Logout failed"));
+          throw new Error(getApiErrorMessage(data, "خروج از حساب ناموفق بود"));
         } catch (error) {
           if (error instanceof Error) {
             throw error;

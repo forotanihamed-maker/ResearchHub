@@ -28,10 +28,10 @@ interface Project {
 }
 
 const STATUS_FILTERS = [
-  { label: "All", value: "all" },
-  { label: "Open", value: "open" },
-  { label: "In Progress", value: "in_progress" },
-  { label: "Completed", value: "completed" },
+  { label: "همه", value: "all" },
+  { label: "باز", value: "open" },
+  { label: "در حال انجام", value: "in_progress" },
+  { label: "تکمیل‌شده", value: "completed" },
 ];
 
 export default function ProjectsPage() {
@@ -41,7 +41,7 @@ export default function ProjectsPage() {
     queryKey: ["projects", "browse-open"],
     queryFn: async () => {
       const res = await fetch(`/api/projects?status=open`);
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("خطا در دریافت پروژه‌ها");
       return res.json() as Promise<{ projects: Project[] }>;
     },
   });
@@ -60,39 +60,36 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <TopBar
-        title="Browse Projects"
-        subtitle="Discover research opportunities"
-      />
+      <TopBar title="مرور پروژه‌ها" subtitle="فرصت‌های پژوهشی را کشف کنید" />
 
       <div className="p-6 space-y-5">
         {/* Search Bar */}
         <div className="relative">
           <Search
             size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
             type="text"
-            placeholder="Search projects, professors..."
+            placeholder="جستجوی پروژه، استاد..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            className="w-full ps-9 pe-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
           />
         </div>
 
         {/* Results count */}
         {!isLoading && !isError && (
           <p className="text-sm text-slate-500">
-            {filtered.length} project{filtered.length !== 1 ? "s" : ""} found
+            {filtered.length} پروژه یافت شد
           </p>
         )}
 
         {/* Projects Grid */}
         {isError ? (
           <ErrorState
-            title="Couldn't load projects"
-            description="Something went wrong while fetching projects."
+            title="بارگذاری پروژه‌ها با مشکل مواجه شد"
+            description="در دریافت اطلاعات پروژه‌ها خطایی رخ داد."
             onRetry={() => refetch()}
           />
         ) : isLoading ? (
@@ -104,11 +101,11 @@ export default function ProjectsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={FolderKanban}
-            title="No projects found"
+            title="پروژه‌ای یافت نشد"
             description={
               search
-                ? "Try adjusting your search"
-                : "No research projects are available yet"
+                ? "جستجوی خود را تغییر دهید"
+                : "هنوز پروژه پژوهشی‌ای در دسترس نیست"
             }
           />
         ) : (

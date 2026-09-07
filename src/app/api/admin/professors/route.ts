@@ -18,9 +18,9 @@ async function getAdminDepartments(adminId: number) {
 export async function GET() {
   const admin = await getAuthUser();
   if (!admin)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "احراز هویت نشده‌اید" }, { status: 401 });
   if (admin.role !== "admin")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
   const departments = await getAdminDepartments(admin.userId);
   if (departments.length === 0) return NextResponse.json({ professors: [] });
@@ -56,9 +56,9 @@ export async function POST() {
 export async function PATCH(req: NextRequest) {
   const admin = await getAuthUser();
   if (!admin)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "احراز هویت نشده‌اید" }, { status: 401 });
   if (admin.role !== "admin")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -69,7 +69,10 @@ export async function PATCH(req: NextRequest) {
       professorId <= 0 ||
       !isValidProfessorStatus(status)
     ) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      return NextResponse.json(
+        { error: "درخواست نامعتبر است" },
+        { status: 400 }
+      );
     }
 
     const departments = await getAdminDepartments(admin.userId);
@@ -84,7 +87,7 @@ export async function PATCH(req: NextRequest) {
       !departments.includes(professor.department)
     ) {
       return NextResponse.json(
-        { error: "Professor is outside your department scope" },
+        { error: "این استاد خارج از محدوده گروه‌های آموزشی شماست" },
         { status: 403 }
       );
     }
@@ -103,9 +106,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ professor: updated });
   } catch (error) {
     console.error("Professor status update error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

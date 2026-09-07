@@ -26,7 +26,9 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-indigo-600 animate-pulse" />
-          <p className="text-sm text-slate-500">Loading ResearchHub...</p>
+          <p className="text-sm text-slate-500">
+            در حال بارگذاری ResearchHub...
+          </p>
         </div>
       </div>
     );
@@ -38,7 +40,7 @@ export default function DashboardLayout({
     <SidebarProvider>
       <div className="min-h-screen bg-slate-50">
         <Sidebar />
-        <main className="lg:ml-64 min-h-screen">{children}</main>
+        <main className="lg:ms-64 min-h-screen">{children}</main>
       </div>
     </SidebarProvider>
   );

@@ -12,7 +12,7 @@ import {
   Users,
   FlaskConical,
   XCircle,
-  ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 
 interface Professor {
@@ -87,7 +87,7 @@ export default function AdminPage() {
       setError("");
     } catch {
       setError(
-        "Unable to load admin data. Check your department assignments and database connection."
+        "دریافت اطلاعات مدیریت ناموفق بود. اتصال دیتابیس و گروه‌های آموزشی تحت مدیریت خود را بررسی کنید."
       );
     } finally {
       setLoading(false);
@@ -113,11 +113,11 @@ export default function AdminPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Update failed");
+        throw new Error(data.error || "به‌روزرسانی ناموفق بود");
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
+      setError(err instanceof Error ? err.message : "به‌روزرسانی ناموفق بود");
     } finally {
       setActionId(null);
     }
@@ -125,29 +125,27 @@ export default function AdminPage() {
 
   return (
     <div>
-      <TopBar
-        title="Admin Panel"
-        subtitle="ResearchHub university administration"
-      />
+      <TopBar title="پنل مدیریت" subtitle="مدیریت دانشگاهی ResearchHub" />
       <main className="p-6 lg:p-8 space-y-7">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
-              Administration
+              مدیریت
             </p>
             <h2 className="mt-1 text-2xl font-bold text-slate-900">
-              University overview
+              نمای کلی دانشگاه
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Users are scoped to assigned departments; projects are visible for
-              university-wide supervision.
+              کاربران محدود به گروه‌های آموزشی تخصیص‌یافته هستند؛ پروژه‌ها برای
+              نظارت سراسری دانشگاه قابل مشاهده‌اند.
             </p>
           </div>
           <Link
             href="/dashboard/admin/departments"
             className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
           >
-            <Building2 size={16} /> Manage departments <ArrowRight size={15} />
+            <Building2 size={16} /> مدیریت گروه‌های آموزشی{" "}
+            <ArrowLeft size={15} />
           </Link>
         </div>
 
@@ -158,14 +156,14 @@ export default function AdminPage() {
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Metric title="Students" value={stats.students} icon={Users} />
+          <Metric title="دانشجویان" value={stats.students} icon={Users} />
           <Metric
-            title="Professors"
+            title="استادان"
             value={stats.professors}
             icon={GraduationCap}
           />
           <Metric
-            title="All Projects"
+            title="کل پروژه‌ها"
             value={stats.projects}
             icon={FlaskConical}
           />
@@ -175,10 +173,10 @@ export default function AdminPage() {
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
               <h3 className="font-semibold text-slate-900">
-                Managed departments
+                گروه‌های آموزشی تحت مدیریت
               </h3>
               <p className="mt-0.5 text-xs text-slate-500">
-                Departments assigned to this admin.
+                گروه‌های آموزشی تخصیص‌یافته به این مدیر.
               </p>
             </div>
             <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
@@ -196,7 +194,7 @@ export default function AdminPage() {
             ))}
             {!loading && departments.length === 0 && (
               <p className="text-sm text-amber-700">
-                No department is assigned yet.
+                هنوز گروه آموزشی‌ای تخصیص داده نشده است.
               </p>
             )}
           </div>
@@ -206,11 +204,11 @@ export default function AdminPage() {
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
               <h3 className="font-semibold text-slate-900">
-                All research projects
+                همه پروژه‌های پژوهشی
               </h3>
               <p className="mt-0.5 text-xs text-slate-500">
-                University-wide supervisory view. This list is not restricted by
-                the admin's department scope.
+                نمای نظارتی سراسری دانشگاه. این فهرست به محدوده گروه‌های آموزشی
+                مدیر محدود نیست.
               </p>
             </div>
             <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
@@ -220,11 +218,11 @@ export default function AdminPage() {
           <div className="divide-y divide-slate-100">
             {loading ? (
               <div className="p-6 text-sm text-slate-500">
-                Loading projects...
+                در حال بارگذاری پروژه‌ها...
               </div>
             ) : projects.length === 0 ? (
               <div className="p-6 text-sm text-slate-500">
-                No projects found.
+                پروژه‌ای یافت نشد.
               </div>
             ) : (
               projects.slice(0, 20).map((project) => (
@@ -250,9 +248,9 @@ export default function AdminPage() {
                     </div>
                     <div className="flex shrink-0 gap-3 text-xs text-slate-500">
                       <span>
-                        {project.memberCount}/{project.maxMembers} members
+                        {project.memberCount}/{project.maxMembers} عضو
                       </span>
-                      <span>{project.pendingApplications} pending</span>
+                      <span>{project.pendingApplications} در انتظار</span>
                     </div>
                   </div>
                 </Link>
@@ -264,25 +262,25 @@ export default function AdminPage() {
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
-              <h3 className="font-semibold text-slate-900">
-                Professor approval
-              </h3>
+              <h3 className="font-semibold text-slate-900">تأیید استادان</h3>
               <p className="mt-0.5 text-xs text-slate-500">
-                Review professor registrations in your managed departments.
+                ثبت‌نام استادان در گروه‌های آموزشی تحت مدیریت خود را بررسی کنید.
               </p>
             </div>
             {pending.length > 0 && (
               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                {pending.length} pending
+                {pending.length} در انتظار
               </span>
             )}
           </div>
           <div className="divide-y divide-slate-100">
             {loading ? (
-              <div className="p-6 text-sm text-slate-500">Loading...</div>
+              <div className="p-6 text-sm text-slate-500">
+                در حال بارگذاری...
+              </div>
             ) : professors.length === 0 ? (
               <div className="p-6 text-sm text-slate-500">
-                No professors in your managed departments.
+                استادی در گروه‌های آموزشی تحت مدیریت شما یافت نشد.
               </div>
             ) : (
               professors.map((professor) => (
@@ -309,7 +307,7 @@ export default function AdminPage() {
                         className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                       >
                         <CheckCircle2 size={14} />
-                        Approve
+                        تأیید
                       </button>
                       <button
                         disabled={actionId === professor.id}
@@ -317,7 +315,7 @@ export default function AdminPage() {
                         className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                       >
                         <XCircle size={14} />
-                        Reject
+                        رد
                       </button>
                     </div>
                   )}
@@ -355,27 +353,27 @@ function Status({ status }: { status: Professor["professorStatus"] }) {
     return (
       <Badge className="bg-amber-50 text-amber-700">
         <Clock3 size={12} />
-        Pending
+        در انتظار
       </Badge>
     );
   if (status === "approved")
     return (
       <Badge className="bg-emerald-50 text-emerald-700">
         <CheckCircle2 size={12} />
-        Approved
+        تأییدشده
       </Badge>
     );
   return (
     <Badge className="bg-red-50 text-red-700">
       <XCircle size={12} />
-      Rejected
+      ردشده
     </Badge>
   );
 }
 function ProjectStatus({ status }: { status: AdminProject["status"] }) {
   if (status === "open")
-    return <Badge className="bg-emerald-50 text-emerald-700">Open</Badge>;
+    return <Badge className="bg-emerald-50 text-emerald-700">باز</Badge>;
   if (status === "in_progress")
-    return <Badge className="bg-blue-50 text-blue-700">In Progress</Badge>;
-  return <Badge className="bg-slate-100 text-slate-700">Completed</Badge>;
+    return <Badge className="bg-blue-50 text-blue-700">در حال انجام</Badge>;
+  return <Badge className="bg-slate-100 text-slate-700">تکمیل‌شده</Badge>;
 }

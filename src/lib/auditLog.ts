@@ -6,17 +6,15 @@ export type AuditEvent =
   | "professor_pending_login"
   | "professor_rejected_login"
   | "register_success"
-  | "register_rate_limited"
-  | "password_changed"
-  | "password_change_failed"
-  | "password_change_rate_limited"
   | "seed_denied"
   | "seed_executed"
   | "project_deleted"
   | "application_approved"
   | "application_rejected"
   | "professor_created"
-  | "professor_status_changed";
+  | "professor_status_changed"
+  | "project_file_uploaded"
+  | "project_file_deleted";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;

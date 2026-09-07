@@ -16,7 +16,7 @@ export default function AdminDepartmentsPage() {
     fetch("/api/admin/departments")
       .then((r) => r.json())
       .then((data) => setSelected(data.selected ?? []))
-      .catch(() => setMessage("Unable to load departments"));
+      .catch(() => setMessage("دریافت گروه‌های آموزشی ناموفق بود"));
   }, []);
 
   const toggle = (department: string) => {
@@ -37,10 +37,12 @@ export default function AdminDepartmentsPage() {
         body: JSON.stringify({ departments: selected }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unable to save");
-      setMessage("Department scope saved successfully.");
+      if (!res.ok) throw new Error(data.error || "ذخیره‌سازی ناموفق بود");
+      setMessage("محدوده گروه‌های آموزشی با موفقیت ذخیره شد.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save");
+      setMessage(
+        error instanceof Error ? error.message : "ذخیره‌سازی ناموفق بود"
+      );
     } finally {
       setSaving(false);
     }
@@ -49,8 +51,8 @@ export default function AdminDepartmentsPage() {
   return (
     <div>
       <TopBar
-        title="Department Management"
-        subtitle="Choose which departments this admin can manage"
+        title="مدیریت گروه‌های آموزشی"
+        subtitle="گروه‌های آموزشی تحت مدیریت این مدیر را انتخاب کنید"
       />
       <main className="p-6 lg:p-8">
         <div className="mx-auto max-w-3xl space-y-6">
@@ -58,7 +60,7 @@ export default function AdminDepartmentsPage() {
             href="/dashboard/admin"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"
           >
-            <ArrowLeft size={16} /> Back to Admin Panel
+            <ArrowLeft size={16} /> بازگشت به پنل مدیریت
           </Link>
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-start gap-4">
@@ -67,11 +69,11 @@ export default function AdminDepartmentsPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Managed departments
+                  گروه‌های آموزشی تحت مدیریت
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Students, professors and projects outside this scope stay
-                  outside this admin&apos;s dashboard.
+                  دانشجویان، استادان و پروژه‌های خارج از این محدوده در داشبورد
+                  این مدیر نمایش داده نمی‌شوند.
                 </p>
               </div>
             </div>
@@ -83,7 +85,7 @@ export default function AdminDepartmentsPage() {
                     key={department}
                     type="button"
                     onClick={() => toggle(department)}
-                    className={`flex items-center justify-between rounded-xl border p-4 text-right transition ${
+                    className={`flex items-center justify-between rounded-xl border p-4 text-end transition ${
                       active
                         ? "border-indigo-300 bg-indigo-50 text-indigo-800"
                         : "border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-slate-50"
@@ -101,14 +103,14 @@ export default function AdminDepartmentsPage() {
             </div>
             <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-5">
               <p className="text-sm text-slate-500">
-                {selected.length} department(s) selected
+                {selected.length} گروه آموزشی انتخاب شده
               </p>
               <button
                 onClick={save}
                 disabled={saving || selected.length === 0}
                 className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save departments"}
+                {saving ? "در حال ذخیره..." : "ذخیره گروه‌های آموزشی"}
               </button>
             </div>
             {message && (

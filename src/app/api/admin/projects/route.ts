@@ -8,9 +8,12 @@ export async function GET() {
   try {
     const admin = await getAuthUser();
     if (!admin)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
     if (admin.role !== "admin")
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
     const rows = await db
       .select({
@@ -42,9 +45,6 @@ export async function GET() {
     return NextResponse.json({ projects: rows });
   } catch (error) {
     console.error("Admin projects error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }

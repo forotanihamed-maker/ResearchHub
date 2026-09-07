@@ -39,12 +39,12 @@ export default function NewProjectPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to create project");
+        throw new Error(data.error || "ساخت پروژه ناموفق بود");
       }
 
       router.push("/dashboard/my-projects");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create project");
+      setError(err instanceof Error ? err.message : "ساخت پروژه ناموفق بود");
     } finally {
       setLoading(false);
     }
@@ -52,15 +52,15 @@ export default function NewProjectPage() {
 
   return (
     <div>
-      <TopBar title="New Project" subtitle="Create a new research project" />
+      <TopBar title="پروژه جدید" subtitle="یک پروژه پژوهشی جدید ایجاد کنید" />
 
       <div className="p-6 max-w-2xl">
         <Card>
           <CardBody className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
-                label="Project Title"
-                placeholder="e.g., AI-based Medical Diagnosis"
+                label="عنوان پروژه"
+                placeholder="مثلاً: تشخیص پزشکی مبتنی بر هوش مصنوعی"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 required
@@ -68,12 +68,12 @@ export default function NewProjectPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Description
+                  توضیحات
                 </label>
                 <textarea
                   rows={4}
                   className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Describe your research project..."
+                  placeholder="پروژه پژوهشی خود را توصیف کنید..."
                   value={form.description}
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
@@ -84,7 +84,7 @@ export default function NewProjectPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Max Members"
+                  label="حداکثر تعداد اعضا"
                   type="number"
                   min={1}
                   max={10}
@@ -95,7 +95,7 @@ export default function NewProjectPage() {
                   required
                 />
                 <Input
-                  label="Deadline"
+                  label="مهلت انجام"
                   type="date"
                   value={form.deadline}
                   onChange={(e) =>
@@ -116,10 +116,10 @@ export default function NewProjectPage() {
                   variant="outline"
                   onClick={() => router.back()}
                 >
-                  Cancel
+                  لغو
                 </Button>
                 <Button type="submit" loading={loading}>
-                  Create Project
+                  ساخت پروژه
                 </Button>
               </div>
             </form>

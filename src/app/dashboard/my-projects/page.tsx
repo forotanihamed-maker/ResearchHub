@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProjectCardSkeleton } from "@/components/ui/Skeleton";
 import { Plus, FolderKanban } from "lucide-react";
+import { statusLabel } from "@/lib/utils";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,10 @@ interface Project {
 }
 
 const STATUS_FILTERS = [
-  { label: "All", value: "all" },
-  { label: "Open", value: "open" },
-  { label: "In Progress", value: "in_progress" },
-  { label: "Completed", value: "completed" },
+  { label: "همه", value: "all" },
+  { label: "باز", value: "open" },
+  { label: "در حال انجام", value: "in_progress" },
+  { label: "تکمیل‌شده", value: "completed" },
 ];
 
 export default function MyProjectsPage() {
@@ -43,7 +44,7 @@ export default function MyProjectsPage() {
     queryKey: ["my-projects"],
     queryFn: async () => {
       const res = await fetch("/api/projects?my=true");
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("خطا در دریافت پروژه‌ها");
       return res.json() as Promise<{ projects: Project[] }>;
     },
     enabled: user?.role === "professor",
@@ -58,12 +59,12 @@ export default function MyProjectsPage() {
   return (
     <div>
       <TopBar
-        title="My Projects"
-        subtitle="Manage your research projects and applications"
+        title="پروژه‌های من"
+        subtitle="پروژه‌های پژوهشی و درخواست‌های خود را مدیریت کنید"
         actions={
           <Link href="/dashboard/my-projects/new">
             <Button>
-              <Plus size={16} /> New Project
+              <Plus size={16} /> پروژه جدید
             </Button>
           </Link>
         }
@@ -85,7 +86,7 @@ export default function MyProjectsPage() {
             >
               {f.label}
               {f.value !== "all" && (
-                <span className="ml-1.5 text-xs opacity-60">
+                <span className="ms-1.5 text-xs opacity-60">
                   {projects.filter((p) => p.status === f.value).length}
                 </span>
               )}
@@ -104,19 +105,19 @@ export default function MyProjectsPage() {
             icon={FolderKanban}
             title={
               statusFilter === "all"
-                ? "No projects yet"
-                : `No ${statusFilter.replace("_", " ")} projects`
+                ? "هنوز پروژه‌ای ثبت نکرده‌اید"
+                : `پروژه‌ای با وضعیت «${statusLabel(statusFilter)}» یافت نشد`
             }
             description={
               statusFilter === "all"
-                ? "Create your first research project and start recruiting students"
-                : "No projects match this status"
+                ? "اولین پروژه پژوهشی خود را ایجاد کنید و جذب دانشجو را شروع کنید"
+                : "پروژه‌ای مطابق این وضعیت یافت نشد"
             }
             action={
               statusFilter === "all" ? (
                 <Link href="/dashboard/my-projects/new">
                   <Button>
-                    <Plus size={16} /> Create Project
+                    <Plus size={16} /> ساخت پروژه
                   </Button>
                 </Link>
               ) : undefined

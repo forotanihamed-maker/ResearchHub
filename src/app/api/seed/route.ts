@@ -29,7 +29,7 @@ function assertSeedAccess(req: NextRequest): NextResponse | null {
 
   if (!expected) {
     auditLog("seed_denied", { ip, reason: "no_secret_configured" });
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "یافت نشد" }, { status: 404 });
   }
 
   const provided =
@@ -38,7 +38,7 @@ function assertSeedAccess(req: NextRequest): NextResponse | null {
 
   if (provided !== expected) {
     auditLog("seed_denied", { ip, reason: "bad_secret" });
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "یافت نشد" }, { status: 404 });
   }
 
   auditLog("seed_executed", { ip, method: req.method });
@@ -464,7 +464,7 @@ export async function GET(req: NextRequest) {
     console.error("Seed error:", error);
     return NextResponse.json(
       {
-        error: "❌ Failed to seed data",
+        error: "❌ ایجاد داده‌های نمونه ناموفق بود",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
@@ -491,7 +491,7 @@ export async function POST(req: NextRequest) {
     console.error("Seed error:", error);
     return NextResponse.json(
       {
-        error: "❌ Failed to seed data",
+        error: "❌ ایجاد داده‌های نمونه ناموفق بود",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }

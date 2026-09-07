@@ -9,9 +9,9 @@ import { DEPARTMENTS, isValidDepartment } from "@/lib/validation";
 export async function GET() {
   const admin = await getAuthUser();
   if (!admin)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "احراز هویت نشده‌اید" }, { status: 401 });
   if (admin.role !== "admin")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
   const rows = await db
     .select({ department: adminDepartments.department })
@@ -27,9 +27,9 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const admin = await getAuthUser();
   if (!admin)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "احراز هویت نشده‌اید" }, { status: 401 });
   if (admin.role !== "admin")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest) {
       !departments.every(isValidDepartment)
     ) {
       return NextResponse.json(
-        { error: "Select at least one valid department" },
+        { error: "حداقل یک گروه آموزشی معتبر انتخاب کنید" },
         { status: 400 }
       );
     }
@@ -51,22 +51,17 @@ export async function PATCH(req: NextRequest) {
       await tx
         .delete(adminDepartments)
         .where(eq(adminDepartments.adminId, admin.userId));
-      await tx
-        .insert(adminDepartments)
-        .values(
-          departments.map((department) => ({
-            adminId: admin.userId,
-            department,
-          }))
-        );
+      await tx.insert(adminDepartments).values(
+        departments.map((department) => ({
+          adminId: admin.userId,
+          department,
+        }))
+      );
     });
 
     return NextResponse.json({ selected: departments });
   } catch (error) {
     console.error("Admin departments update error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
   }
 }
