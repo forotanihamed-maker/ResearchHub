@@ -7,6 +7,7 @@ export type AuditEvent =
   | "professor_pending_login"
   | "professor_rejected_login"
   | "register_success"
+  | "register_rate_limited"
   | "seed_denied"
   | "seed_executed"
   | "project_deleted"

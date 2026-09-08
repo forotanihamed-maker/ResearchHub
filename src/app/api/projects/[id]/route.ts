@@ -45,6 +45,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         title: projects.title,
         description: projects.description,
         status: projects.status,
+        type: projects.type,
         professorId: projects.professorId,
         maxMembers: projects.maxMembers,
         deadline: projects.deadline,
@@ -70,12 +71,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "پروژه یافت نشد" }, { status: 404 });
     }
 
-    // Get members
+    // Get members — email intentionally excluded: team members should not
+    // see each other's email addresses through this general endpoint; only
+    // the owning professor can see an applicant's email, via the separate
+    // GET /api/projects/[id]/applications endpoint.
     const members = await db
       .select({
         id: users.id,
         name: users.name,
-        email: users.email,
         role: users.role,
         avatar: users.avatar,
         department: users.department,

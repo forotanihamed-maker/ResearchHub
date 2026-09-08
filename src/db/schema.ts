@@ -38,7 +38,18 @@ export const applicationStatusEnum = pgEnum("application_status", [
   "rejected",
   "cancelled",
 ]);
-export const messageTypeEnum = pgEnum("message_type", ["text"]);
+export const messageTypeEnum = pgEnum("message_type", [
+  "text",
+  "progress_update",
+]);
+// د.۱ — what kind of project this is (thesis / internship / coursework /
+// open research). Defaults to "research" to match all pre-existing rows.
+export const projectTypeEnum = pgEnum("project_type", [
+  "thesis",
+  "internship",
+  "course",
+  "research",
+]);
 // ج.۲ — file infrastructure: which part of the product a file belongs to.
 export const fileContextEnum = pgEnum("file_context", [
   "chat",
@@ -123,6 +134,8 @@ export const projects = pgTable(
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description").notNull(),
     status: projectStatusEnum("status").notNull().default("open"),
+    // د.۱ — project category (thesis/internship/course/research).
+    type: projectTypeEnum("type").notNull().default("research"),
     professorId: integer("professor_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),

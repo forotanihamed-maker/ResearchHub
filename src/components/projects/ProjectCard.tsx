@@ -11,6 +11,7 @@ import {
   formatDate,
   formatTimeAgo,
 } from "@/lib/utils";
+import { PROJECT_TYPE_LABELS, type ProjectType } from "@/lib/validation";
 import {
   Users,
   Calendar,
@@ -19,12 +20,20 @@ import {
   Building2,
 } from "lucide-react";
 
+const PROJECT_TYPE_COLOR: Record<ProjectType, string> = {
+  thesis: "bg-purple-50 text-purple-700 border-purple-200",
+  internship: "bg-orange-50 text-orange-700 border-orange-200",
+  course: "bg-sky-50 text-sky-700 border-sky-200",
+  research: "bg-indigo-50 text-indigo-700 border-indigo-200",
+};
+
 interface ProjectCardProps {
   project: {
     id: number;
     title: string;
     description: string;
     status: string;
+    type?: ProjectType;
     professorName: string;
     professorDepartment?: string | null;
     professorUniversity?: string | null;
@@ -47,7 +56,7 @@ export function ProjectCard({
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all duration-200 flex flex-col">
       <div className="p-5 flex-1">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-start justify-between gap-3 mb-2">
           <h3 className="font-semibold text-slate-900 text-sm leading-snug line-clamp-2 flex-1">
             {project.title}
           </h3>
@@ -55,6 +64,14 @@ export function ProjectCard({
             {statusLabel(project.status)}
           </Badge>
         </div>
+
+        {project.type && (
+          <div className="mb-3">
+            <Badge className={PROJECT_TYPE_COLOR[project.type]}>
+              {PROJECT_TYPE_LABELS[project.type]}
+            </Badge>
+          </div>
+        )}
 
         {/* Description */}
         <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">

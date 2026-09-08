@@ -36,12 +36,14 @@ import { ChatPanel } from "@/components/projects/ChatPanel";
 import { ApplicationsPanel } from "@/components/projects/ApplicationsPanel";
 import { ProjectFiles } from "@/components/projects/ProjectFiles";
 import { messages } from "@/lib/messages.fa";
+import { PROJECT_TYPE_LABELS } from "@/lib/validation";
 
 interface ProjectDetail {
   id: number;
   title: string;
   description: string;
   status: string;
+  type?: "thesis" | "internship" | "course" | "research";
   professorId: number;
   professorName: string;
   professorDepartment?: string | null;
@@ -50,7 +52,6 @@ interface ProjectDetail {
   members: {
     id: number;
     name: string;
-    email: string;
     role: string;
     avatar?: string | null;
     department?: string | null;
@@ -270,6 +271,11 @@ export default function ProjectDetailPage({
                 >
                   {statusLabel(project.status)}
                 </Badge>
+                {project.type && (
+                  <Badge className="text-sm px-3 py-1 bg-indigo-50 text-indigo-700 border-indigo-200">
+                    {PROJECT_TYPE_LABELS[project.type]}
+                  </Badge>
+                )}
                 {canApply && (
                   <Button onClick={() => setApplyModal(true)}>
                     <Send size={16} /> ارسال درخواست

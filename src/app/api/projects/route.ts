@@ -9,6 +9,7 @@ import {
   sanitizeDescription,
   parseMaxMembers,
   parseDeadline,
+  isValidProjectType,
   TITLE_MIN,
   TITLE_MAX,
   DESCRIPTION_MIN,
@@ -105,6 +106,7 @@ export async function GET(req: NextRequest) {
         title: projects.title,
         description: projects.description,
         status: projects.status,
+        type: projects.type,
         professorId: projects.professorId,
         maxMembers: projects.maxMembers,
         deadline: projects.deadline,
@@ -213,7 +215,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, description, maxMembers, deadline } = body;
+    const { title, description, maxMembers, deadline, type } = body;
 
     const cleanTitle = sanitizeTitle(title);
     if (cleanTitle === null) {
@@ -233,6 +235,19 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // د.۱ — نوع پروژه؛ اگر ارسال نشود، پیش‌فرض «پژوهشی» است (سازگار با
+    // پروژه‌های قدیمی‌تر که این فیلد را نداشتند).
+    let cleanType: "thesis" | "internship" | "course" | "research" = "research";
+    if (type !== undefined) {
+      if (!isValidProjectType(type)) {
+        return NextResponse.json(
+          { error: "نوع پروژه نامعتبر است" },
+          { status: 400 }
+        );
+      }
+      cleanType = type;
     }
 
     let cleanMaxMembers = 5;
@@ -264,6 +279,7 @@ export async function POST(req: NextRequest) {
         maxMembers: cleanMaxMembers,
         deadline: deadlineResult.value,
         status: "open",
+        type: cleanType,
       })
       .returning();
 

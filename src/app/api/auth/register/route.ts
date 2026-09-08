@@ -15,9 +15,29 @@ import {
   PASSWORD_MIN,
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_ATTEMPTS_PER_IP = 5;
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const ipKey = `register:ip:${ip}`;
+    const ipCheck = checkRateLimit(ipKey, MAX_ATTEMPTS_PER_IP, WINDOW_MS);
+
+    if (!ipCheck.allowed) {
+      const retryAfterSec = Math.ceil((ipCheck.resetAt - Date.now()) / 1000);
+      auditLog("register_rate_limited", { ip });
+      return NextResponse.json(
+        {
+          error:
+            "تعداد تلاش‌های ثبت‌نام بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.",
+        },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+      );
+    }
+
     const body = await req.json();
     const {
       name,

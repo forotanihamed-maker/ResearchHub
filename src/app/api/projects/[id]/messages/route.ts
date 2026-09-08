@@ -1,7 +1,7 @@
 /*src\app\api\projects\[id]\massages\route.ts */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { chatMessages, projectMembers, users, projects } from "@/db/schema";
+import { chatMessages, projectMembers, users, projects, projectFiles } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -70,16 +70,40 @@ export async function GET(_req: NextRequest, { params }: Params) {
         senderName: users.name,
         senderAvatar: users.avatar,
         senderRole: users.role,
+        // اگر این پیام یک پیوست فایل داشته باشد (از /api/projects/[id]/files
+        // با chatMessageId مرتبط شده)، اطلاعاتش اینجا هم برمی‌گردد تا بتوان
+        // مستقیم از داخل حباب پیام دانلود کرد — نه از یک نوار جدا.
+        attachmentId: projectFiles.id,
+        attachmentFileName: projectFiles.fileName,
+        attachmentFileUrl: projectFiles.fileUrl,
+        attachmentFileSize: projectFiles.fileSize,
       })
       .from(chatMessages)
       .innerJoin(users, eq(chatMessages.senderId, users.id))
+      .leftJoin(
+        projectFiles,
+        eq(projectFiles.chatMessageId, chatMessages.id)
+      )
       .where(eq(chatMessages.projectId, projectId))
       .orderBy(desc(chatMessages.createdAt))
       .limit(MESSAGE_LIMIT);
 
     // We fetched newest-first to apply the LIMIT; reverse back to
     // chronological order for display.
-    const messages = recentMessages.reverse();
+    const messages = recentMessages.reverse().map((m) => {
+      const { attachmentId, attachmentFileName, attachmentFileUrl, attachmentFileSize, ...rest } = m;
+      return {
+        ...rest,
+        attachment: attachmentId
+          ? {
+              id: attachmentId,
+              fileName: attachmentFileName!,
+              fileUrl: attachmentFileUrl!,
+              fileSize: attachmentFileSize!,
+            }
+          : null,
+      };
+    });
 
     return NextResponse.json({ messages });
   } catch (error) {
@@ -110,6 +134,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const body = await req.json();
     const content = typeof body.content === "string" ? body.content.trim() : "";
+    // د.۲ — نوع پیام: پیش‌فرض "text"؛ فقط "progress_update" هم مجاز است.
+    const type = body.type === "progress_update" ? "progress_update" : "text";
 
     if (!content) {
       return NextResponse.json(
@@ -159,7 +185,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         projectId,
         senderId: authUser.userId,
         content: content.trim(),
-        type: "text",
+        type,
       })
       .returning();
 
@@ -175,6 +201,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           senderName: sender.name,
           senderAvatar: sender.avatar,
           senderRole: sender.role,
+          attachment: null,
         },
       },
       { status: 201 }

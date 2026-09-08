@@ -49,6 +49,7 @@ interface Project {
   title: string;
   description: string;
   status: string;
+  type?: "thesis" | "internship" | "course" | "research";
   professorName: string;
   memberCount: number;
   maxMembers: number;

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardBody } from "@/components/ui/Card";
+import { PROJECT_TYPES, PROJECT_TYPE_LABELS } from "@/lib/validation";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function NewProjectPage() {
   const [form, setForm] = useState({
     title: "",
     description: "",
+    type: "research" as typeof PROJECT_TYPES[number],
     maxMembers: 5,
     deadline: "",
   });
@@ -32,6 +34,7 @@ export default function NewProjectPage() {
         body: JSON.stringify({
           title: form.title,
           description: form.description,
+          type: form.type,
           maxMembers: form.maxMembers,
           deadline: form.deadline || null,
         }),
@@ -80,6 +83,28 @@ export default function NewProjectPage() {
                   }
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  نوع پروژه
+                </label>
+                <select
+                  className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+                  value={form.type}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      type: e.target.value as typeof PROJECT_TYPES[number],
+                    })
+                  }
+                >
+                  {PROJECT_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {PROJECT_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

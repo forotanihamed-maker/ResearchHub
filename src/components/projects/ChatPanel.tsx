@@ -6,10 +6,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Send, MessageSquare, Paperclip, Download } from "lucide-react";
+import {
+  Send,
+  MessageSquare,
+  Paperclip,
+  Download,
+  CheckCircle2,
+} from "lucide-react";
 import { formatTimeAgo, formatFileSize } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { messages as faMessages } from "@/lib/messages.fa";
+
+interface Attachment {
+  id: number;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+}
 
 interface Message {
   id: number;
@@ -21,14 +34,7 @@ interface Message {
   senderName: string;
   senderAvatar?: string | null;
   senderRole: string;
-}
-
-interface ChatAttachment {
-  id: number;
-  fileName: string;
-  fileUrl: string;
-  fileSize: number;
-  uploaderName: string;
+  attachment: Attachment | null;
 }
 
 export function ChatPanel({ projectId }: { projectId: number }) {
@@ -49,31 +55,30 @@ export function ChatPanel({ projectId }: { projectId: number }) {
     refetchInterval: 5000, // Poll every 5 seconds
   });
 
-  // ج.۸ — chat attachments, shown as a compact strip above the input.
-  const { data: attachmentsData } = useQuery({
-    queryKey: ["project-files", projectId, "chat"],
-    queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/files?context=chat`);
-      if (!res.ok) throw new Error("Failed");
-      return res.json() as Promise<{ files: ChatAttachment[] }>;
-    },
-  });
+  // ج.۸ — پیوست‌های چت حالا مستقیم داخل همان پیام (از طریق chatMessageId)
+  // برمی‌گردند؛ دیگر نیازی به کوئری/نوار جدا نیست.
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [data?.messages]);
 
   const sendMutation = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({
+      content,
+      type = "text",
+    }: {
+      content: string;
+      type?: "text" | "progress_update";
+    }) => {
       const res = await fetch(`/api/projects/${projectId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, type }),
       });
       if (!res.ok) throw new Error("Failed to send");
       return res.json();
     },
-    onMutate: async (content) => {
+    onMutate: async ({ content, type = "text" }) => {
       // Optimistic update
       await queryClient.cancelQueries({ queryKey: ["messages", projectId] });
       const prev = queryClient.getQueryData<{ messages: Message[] }>([
@@ -90,11 +95,12 @@ export function ChatPanel({ projectId }: { projectId: number }) {
               projectId,
               senderId: user?.id ?? 0,
               content,
-              type: "text",
+              type,
               createdAt: new Date().toISOString(),
               senderName: user?.name ?? "شما",
               senderAvatar: user?.avatar,
               senderRole: user?.role ?? "student",
+              attachment: null,
             },
           ],
         })
@@ -112,31 +118,51 @@ export function ChatPanel({ projectId }: { projectId: number }) {
 
   const handleSend = () => {
     if (!message.trim()) return;
-    sendMutation.mutate(message.trim());
+    sendMutation.mutate({ content: message.trim() });
+  };
+
+  // د.۲ — همان پیام، فقط با نوع «به‌روزرسانی پیشرفت» تا در چت متمایز نمایش
+  // داده شود (شبیه یک خلاصه‌ی کوچک از پیشرفت کار، نه یک پیام گفتگوی معمولی).
+  const handleSendProgress = () => {
+    if (!message.trim()) return;
+    sendMutation.mutate({ content: message.trim(), type: "progress_update" });
   };
 
   const attachMutation = useMutation({
     mutationFn: async (file: File) => {
+      // ۱. اول خودِ پیام را می‌سازیم (متنش نام فایل است، برای حالتی که
+      // نمایش پیوست به هر دلیلی ممکن نشود، یک fallback متنی معقول بماند).
+      const msgRes = await fetch(`/api/projects/${projectId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: `📎 ${file.name}` }),
+      });
+      const msgData = await msgRes.json();
+      if (!msgRes.ok) {
+        throw new Error(msgData?.error || "ارسال پیام ناموفق بود");
+      }
+      const messageId = msgData.message.id as number;
+
+      // ۲. فایل را با اشاره به همان پیام آپلود می‌کنیم تا در چت به آن
+      // پیام لینک شود و مستقیم از داخل حباب قابل دانلود باشد.
       const formData = new FormData();
       formData.append("file", file);
       formData.append("context", "chat");
-      const res = await fetch(`/api/projects/${projectId}/files`, {
+      formData.append("chatMessageId", String(messageId));
+
+      const fileRes = await fetch(`/api/projects/${projectId}/files`, {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error || "پیوست کردن فایل ناموفق بود");
+      const fileData = await fileRes.json().catch(() => null);
+      if (!fileRes.ok) {
+        throw new Error(fileData?.error || "پیوست کردن فایل ناموفق بود");
       }
-      return res.json() as Promise<{ file: ChatAttachment }>;
+      return fileData.file as Attachment;
     },
-    onSuccess: async (result) => {
+    onSuccess: () => {
       setAttachError("");
-      queryClient.invalidateQueries({
-        queryKey: ["project-files", projectId, "chat"],
-      });
-      // Also drop a note in the conversation so team members notice it.
-      await sendMutation.mutateAsync(`📎 ${result.file.fileName}`);
+      queryClient.invalidateQueries({ queryKey: ["messages", projectId] });
     },
     onError: (err: Error) => setAttachError(err.message),
   });
@@ -187,6 +213,31 @@ export function ChatPanel({ projectId }: { projectId: number }) {
             const prevMsg = messages[idx - 1];
             const showAvatar = !prevMsg || prevMsg.senderId !== msg.senderId;
 
+            // د.۲ — پیام‌های «به‌روزرسانی پیشرفت» شبیه یک رویداد کوتاه در
+            // وسط گفتگو نمایش داده می‌شوند، نه یک حباب چت معمولی — همان
+            // حسی که یک تاریخچه‌ی commit به آدم می‌دهد.
+            if (msg.type === "progress_update") {
+              return (
+                <div key={msg.id} className="flex justify-center">
+                  <div className="max-w-[85%] bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-start gap-2">
+                    <CheckCircle2
+                      size={16}
+                      className="text-emerald-600 shrink-0 mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs text-emerald-700 font-medium">
+                        {isOwn ? "شما" : msg.senderName} پیشرفت ثبت کرد ·{" "}
+                        {formatTimeAgo(msg.createdAt)}
+                      </p>
+                      <p className="text-sm text-emerald-900 mt-0.5">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={msg.id}
@@ -229,13 +280,60 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                   )}
                   <div
                     className={cn(
-                      "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                      "rounded-2xl text-sm leading-relaxed",
+                      msg.attachment ? "p-1.5" : "px-4 py-2.5",
                       isOwn
                         ? "bg-indigo-600 text-white rounded-e-sm"
                         : "bg-slate-100 text-slate-900 rounded-s-sm"
                     )}
                   >
-                    {msg.content}
+                    {msg.attachment ? (
+                      <a
+                        href={msg.attachment.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={msg.attachment.fileName}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-xl px-3 py-2 transition-colors",
+                          isOwn
+                            ? "bg-indigo-700/60 hover:bg-indigo-700"
+                            : "bg-white hover:bg-slate-50 border border-slate-200"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                            isOwn
+                              ? "bg-white/15 text-white"
+                              : "bg-indigo-50 text-indigo-600"
+                          )}
+                        >
+                          <Paperclip size={16} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">
+                            {msg.attachment.fileName}
+                          </span>
+                          <span
+                            className={cn(
+                              "block text-xs",
+                              isOwn ? "text-indigo-100" : "text-slate-500"
+                            )}
+                          >
+                            {formatFileSize(msg.attachment.fileSize)}
+                          </span>
+                        </span>
+                        <Download
+                          size={16}
+                          className={cn(
+                            "shrink-0",
+                            isOwn ? "text-indigo-100" : "text-slate-400"
+                          )}
+                        />
+                      </a>
+                    ) : (
+                      msg.content
+                    )}
                   </div>
                 </div>
               </div>
@@ -244,26 +342,6 @@ export function ChatPanel({ projectId }: { projectId: number }) {
         )}
         <div ref={bottomRef} />
       </div>
-
-      {/* Attachments strip */}
-      {(attachmentsData?.files?.length ?? 0) > 0 && (
-        <div className="border-t border-slate-100 px-4 py-2 flex gap-2 overflow-x-auto">
-          {attachmentsData!.files.map((f) => (
-            <a
-              key={f.id}
-              href={f.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
-              title={`${f.fileName} (${formatFileSize(f.fileSize)})`}
-            >
-              <Paperclip size={12} />
-              <span className="max-w-[140px] truncate">{f.fileName}</span>
-              <Download size={12} className="text-slate-400" />
-            </a>
-          ))}
-        </div>
-      )}
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-slate-100">
@@ -302,6 +380,16 @@ export function ChatPanel({ projectId }: { projectId: number }) {
             className="self-end"
           >
             <Send size={16} />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSendProgress}
+            disabled={!message.trim() || sendMutation.isPending}
+            className="self-end"
+            title="ثبت پیشرفت"
+          >
+            <CheckCircle2 size={16} />
           </Button>
         </div>
       </div>

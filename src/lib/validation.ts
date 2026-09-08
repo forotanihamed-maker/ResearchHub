@@ -2,6 +2,29 @@
 export const PROJECT_STATUSES = ["open", "in_progress", "completed"] as const;
 export type ProjectStatus = typeof PROJECT_STATUSES[number];
 
+// د.۱ — دسته‌بندی نوع پروژه.
+export const PROJECT_TYPES = [
+  "thesis",
+  "internship",
+  "course",
+  "research",
+] as const;
+export type ProjectType = typeof PROJECT_TYPES[number];
+
+export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
+  thesis: "پایان‌نامه",
+  internship: "کارآموزی",
+  course: "پروژه‌ی درسی",
+  research: "پژوهشی",
+};
+
+export function isValidProjectType(value: unknown): value is ProjectType {
+  return (
+    typeof value === "string" &&
+    (PROJECT_TYPES as readonly string[]).includes(value)
+  );
+}
+
 export const TITLE_MIN = 3;
 export const TITLE_MAX = 255;
 export const DESCRIPTION_MIN = 10;
