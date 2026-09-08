@@ -29,21 +29,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
       );
     }
 
-    // Only the professor who owns the project can see applications
-    if (authUser.role !== "professor") {
-      return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
-    }
 
     const [project] = await db
       .select({
         id: projects.id,
-        professorId: projects.professorId,
+        creatorId: projects.creatorId,
       })
       .from(projects)
       .where(
         and(
           eq(projects.id, projectId),
-          eq(projects.professorId, authUser.userId)
+          eq(projects.creatorId, authUser.userId)
         )
       );
 
@@ -139,7 +135,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         id: projects.id,
         status: projects.status,
         maxMembers: projects.maxMembers,
-        professorId: projects.professorId,
+        creatorId: projects.creatorId,
       })
       .from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.status, "open")));
@@ -202,7 +198,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       .where(eq(projectMembers.projectId, projectId));
 
     const studentMemberCount = members.filter(
-      (m) => m.userId !== project.professorId
+      (m) => m.userId !== project.creatorId
     ).length;
 
     if (studentMemberCount >= project.maxMembers) {
@@ -219,6 +215,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         studentId: authUser.userId,
         message: message || null,
         status: "pending",
+        source: "student_application",
       })
       .returning();
 

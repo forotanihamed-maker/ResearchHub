@@ -44,7 +44,12 @@ interface ProjectDetail {
   description: string;
   status: string;
   type?: "thesis" | "internship" | "course" | "research";
-  professorId: number;
+  creatorId: number;
+  creatorRole: "professor" | "student";
+  visibility: "public" | "private";
+  inviteToken?: string | null;
+  inviteLink?: string | null;
+  professorId?: number | null;
   professorName: string;
   professorDepartment?: string | null;
   professorUniversity?: string | null;
@@ -174,6 +179,32 @@ export default function ProjectDetailPage({
     },
   });
 
+  const [inviteUsername, setInviteUsername] = useState("");
+  const inviteMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const res = await fetch(`/api/projects/${id}/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "دعوت ناموفق بود");
+      return data;
+    },
+    onSuccess: () => { setInviteUsername(""); queryClient.invalidateQueries({ queryKey: ["project", id] }); },
+  });
+
+  const inviteLinkMutation = useMutation({
+    mutationFn: async (action: "generate" | "revoke") => {
+      const res = await fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action === "generate" ? { regenerateInviteToken: true } : { revokeInviteToken: true }) });
+      const data = await res.json(); if (!res.ok) throw new Error(data.error || "عملیات ناموفق بود"); return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project", id] }),
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (memberId: number) => {
+      const res = await fetch(`/api/projects/${id}/members/${memberId}`, { method: "DELETE" }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "حذف عضو ناموفق بود"); return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project", id] }),
+  });
+
   const project = data?.project;
 
   if (isLoading) {
@@ -209,7 +240,7 @@ export default function ProjectDetailPage({
   }
 
   const isProfessor = user?.role === "professor";
-  const isOwner = isProfessor && user?.id === project.professorId;
+  const isOwner = user?.id === project.creatorId;
   const myApp = project.myApplication;
   const canApply =
     user?.role === "student" &&
@@ -232,7 +263,7 @@ export default function ProjectDetailPage({
     <div>
       <TopBar
         title={project.title}
-        subtitle={`استاد: ${project.professorName}`}
+        subtitle={`${project.creatorRole === "student" ? "سازنده دانشجو" : "استاد راهنما"}: ${project.professorName}`}
         actions={
           <Link href="/dashboard/projects">
             <Button variant="ghost" size="sm">
@@ -270,6 +301,9 @@ export default function ProjectDetailPage({
                   className={`${statusColor(project.status)} text-sm px-3 py-1`}
                 >
                   {statusLabel(project.status)}
+                </Badge>
+                <Badge className={project.visibility === "private" ? "text-sm px-3 py-1 bg-amber-50 text-amber-700 border-amber-200" : "text-sm px-3 py-1 bg-emerald-50 text-emerald-700 border-emerald-200"}>
+                  {project.visibility === "private" ? "🔒 پروژه خصوصی" : "🌐 پروژه عمومی"}
                 </Badge>
                 {project.type && (
                   <Badge className="text-sm px-3 py-1 bg-indigo-50 text-indigo-700 border-indigo-200">
@@ -401,10 +435,12 @@ export default function ProjectDetailPage({
                             {member.department && ` · ${member.department}`}
                           </p>
                         </div>
-                        {member.role === "professor" && (
+                        {member.id === project.creatorId ? (
                           <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
-                            استاد راهنما
+                            سازنده
                           </Badge>
+                        ) : isOwner && (
+                          <button onClick={() => removeMemberMutation.mutate(member.id)} className="text-xs text-red-500 hover:text-red-700">حذف</button>
                         )}
                       </div>
                     ))}
@@ -413,13 +449,34 @@ export default function ProjectDetailPage({
               </Card>
             </div>
 
+              {isOwner && (
+                <Card>
+                  <CardBody>
+                    <h3 className="font-semibold text-slate-900 mb-3 text-sm">دعوت دوستان</h3>
+                    <div className="flex gap-2">
+                      <input value={inviteUsername} onChange={e=>setInviteUsername(e.target.value)} placeholder="نام کاربری" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                      <Button size="sm" onClick={()=>inviteMutation.mutate(inviteUsername.trim())} loading={inviteMutation.isPending}>دعوت</Button>
+                    </div>
+                    {inviteMutation.isError && <p className="text-xs text-red-600 mt-2">{inviteMutation.error?.message}</p>}
+                    {project.visibility === "private" && (
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <p className="text-xs text-slate-500 mb-2">لینک دعوت خصوصی</p>
+                        {project.inviteLink ? (
+                          <div className="space-y-2"><input readOnly value={`${window.location.origin}${project.inviteLink}`} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-xs"/><div className="flex gap-2"><Button size="sm" variant="outline" onClick={()=>navigator.clipboard.writeText(`${window.location.origin}${project.inviteLink}`)}>کپی لینک</Button><Button size="sm" variant="outline" onClick={()=>inviteLinkMutation.mutate("revoke")}>غیرفعال کردن</Button></div></div>
+                        ) : <Button size="sm" variant="outline" onClick={()=>inviteLinkMutation.mutate("generate")} loading={inviteLinkMutation.isPending}>ساخت لینک دعوت</Button>}
+                      </div>
+                    )}
+                  </CardBody>
+                </Card>
+              )}
+
             {/* Sidebar */}
             <div className="space-y-4">
               {/* Professor Card */}
               <Card>
                 <CardBody>
                   <h3 className="font-semibold text-slate-900 mb-3 text-sm">
-                    استاد راهنما
+                    {project.creatorRole === "student" ? "سازنده پروژه" : "استاد راهنما"}
                   </h3>
                   <div className="flex items-center gap-3 mb-3">
                     <Avatar
@@ -432,7 +489,7 @@ export default function ProjectDetailPage({
                         {project.professorName}
                       </p>
                       <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 mt-0.5">
-                        استاد
+                        {project.creatorRole === "student" ? "دانشجو" : "استاد"}
                       </Badge>
                     </div>
                   </div>
@@ -482,6 +539,12 @@ export default function ProjectDetailPage({
                         {formatTimeAgo(project.createdAt)}
                       </span>
                     </div>
+                    {isOwner && (
+                      <div className="pt-3 border-t border-slate-100 flex gap-2">
+                        <Button size="sm" variant="outline" disabled={project.visibility === "public"} onClick={()=>fetch(`/api/projects/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({visibility:"public"})}).then(()=>queryClient.invalidateQueries({queryKey:["project",id]}))}>🌐 عمومی</Button>
+                        <Button size="sm" variant="outline" disabled={project.visibility === "private"} onClick={()=>fetch(`/api/projects/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({visibility:"private"})}).then(()=>queryClient.invalidateQueries({queryKey:["project",id]}))}>🔒 خصوصی</Button>
+                      </div>
+                    )}
                   </div>
                 </CardBody>
               </Card>

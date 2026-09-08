@@ -10,6 +10,7 @@ import {
   parseOptionalText,
   validateInterests,
   validateProgrammingLanguages,
+  isValidUsername,
   type Department,
 } from "@/lib/validation";
 
@@ -45,6 +46,7 @@ export async function GET() {
         university: users.university,
         interests: users.interests,
         programmingLanguages: users.programmingLanguages,
+        username: users.username,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -91,6 +93,7 @@ export async function PATCH(req: Request) {
       university,
       interests,
       programmingLanguages,
+      username,
     } = body;
 
     const updateData: {
@@ -100,6 +103,7 @@ export async function PATCH(req: Request) {
       university?: string | null;
       interests?: string[];
       programmingLanguages?: string[];
+      username?: string | null;
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -192,6 +196,20 @@ export async function PATCH(req: Request) {
     }
 
     // -----------------------------
+    // Username
+    // -----------------------------
+    if (username !== undefined) {
+      if (username !== null && !isValidUsername(username)) {
+        return jsonResponse({ error: "نام کاربری باید فقط شامل حروف انگلیسی، عدد و _ و بین ۳ تا ۳۰ کاراکتر باشد" }, 400);
+      }
+      if (username) {
+        const [existingUsername] = await db.select({ id: users.id }).from(users).where(eq(users.username, username));
+        if (existingUsername && existingUsername.id !== authUser.userId) return jsonResponse({ error: "این نام کاربری قبلاً استفاده شده است" }, 409);
+      }
+      updateData.username = username || null;
+    }
+
+    // -----------------------------
     // Interests
     // -----------------------------
 
@@ -267,6 +285,7 @@ export async function PATCH(req: Request) {
         university: users.university,
         interests: users.interests,
         programmingLanguages: users.programmingLanguages,
+        username: users.username,
         createdAt: users.createdAt,
       });
 

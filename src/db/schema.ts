@@ -42,6 +42,18 @@ export const messageTypeEnum = pgEnum("message_type", [
   "text",
   "progress_update",
 ]);
+export const projectCreatorRoleEnum = pgEnum("project_creator_role", [
+  "professor",
+  "student",
+]);
+export const projectVisibilityEnum = pgEnum("project_visibility", [
+  "public",
+  "private",
+]);
+export const applicationSourceEnum = pgEnum("application_source", [
+  "student_application",
+  "owner_invite",
+]);
 // د.۱ — what kind of project this is (thesis / internship / coursework /
 // open research). Defaults to "research" to match all pre-existing rows.
 export const projectTypeEnum = pgEnum("project_type", [
@@ -82,6 +94,7 @@ export const users = pgTable(
       .array()
       .notNull()
       .default([]),
+    username: varchar("username", { length: 30 }).unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -136,8 +149,15 @@ export const projects = pgTable(
     status: projectStatusEnum("status").notNull().default("open"),
     // د.۱ — project category (thesis/internship/course/research).
     type: projectTypeEnum("type").notNull().default("research"),
-    professorId: integer("professor_id")
+    creatorId: integer("creator_id")
       .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    creatorRole: projectCreatorRoleEnum("creator_role").notNull(),
+    visibility: projectVisibilityEnum("visibility").notNull().default("public"),
+    inviteToken: varchar("invite_token", { length: 128 }).unique(),
+    // Kept temporarily for backward compatibility with legacy queries/data.
+    // New projects use creatorId/creatorRole as the source of truth.
+    professorId: integer("professor_id")
       .references(() => users.id, { onDelete: "cascade" }),
     maxMembers: integer("max_members").notNull().default(5),
     deadline: timestamp("deadline"),
@@ -145,8 +165,10 @@ export const projects = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
+    index("projects_creator_id_idx").on(table.creatorId),
     index("projects_professor_id_idx").on(table.professorId),
     index("projects_status_idx").on(table.status),
+    index("projects_visibility_idx").on(table.visibility),
   ]
 );
 
@@ -162,6 +184,7 @@ export const applications = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     status: applicationStatusEnum("status").notNull().default("pending"),
+    source: applicationSourceEnum("source").notNull().default("student_application"),
     message: text("message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -247,7 +270,8 @@ export const projectFiles = pgTable(
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
-  ownedProjects: many(projects),
+  ownedProjects: many(projects, { relationName: "projectCreator" }),
+  legacyProfessorProjects: many(projects, { relationName: "legacyProfessor" }),
   applications: many(applications),
   projectMembers: many(projectMembers),
   chatMessages: many(chatMessages),
@@ -258,9 +282,15 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [projects.creatorId],
+    references: [users.id],
+    relationName: "projectCreator",
+  }),
   professor: one(users, {
     fields: [projects.professorId],
     references: [users.id],
+    relationName: "legacyProfessor",
   }),
   applications: many(applications),
   members: many(projectMembers),

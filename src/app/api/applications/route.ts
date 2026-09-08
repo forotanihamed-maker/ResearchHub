@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { applications, projects, users } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 
 export async function GET() {
@@ -26,6 +26,7 @@ export async function GET() {
         projectId: applications.projectId,
         studentId: applications.studentId,
         status: applications.status,
+        source: applications.source,
         message: applications.message,
         createdAt: applications.createdAt,
         updatedAt: applications.updatedAt,
@@ -37,8 +38,8 @@ export async function GET() {
       })
       .from(applications)
       .innerJoin(projects, eq(applications.projectId, projects.id))
-      .innerJoin(users, eq(projects.professorId, users.id))
-      .where(eq(applications.studentId, authUser.userId))
+      .innerJoin(users, eq(projects.creatorId, users.id))
+      .where(and(eq(applications.studentId, authUser.userId), eq(applications.source, "student_application")))
       .orderBy(desc(applications.createdAt));
 
     return NextResponse.json({ applications: apps });

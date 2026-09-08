@@ -30,6 +30,7 @@ export default function ProfilePage() {
     bio: "",
     department: "",
     university: "",
+    username: "",
   });
   const [languages, setLanguages] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
@@ -57,6 +58,7 @@ export default function ProfilePage() {
         bio: user.bio || "",
         department: user.department || "",
         university: user.university || "",
+        username: user.username || "",
       });
       setLanguages(user.programmingLanguages || []);
       setInterests(user.interests || []);
@@ -73,6 +75,7 @@ export default function ProfilePage() {
           bio: form.bio,
           department: form.department,
           university: form.university,
+          username: form.username.trim() || null,
           programmingLanguages: languages,
           interests,
         }),
@@ -210,6 +213,14 @@ export default function ProfilePage() {
                 value={form.bio}
                 onChange={(e) => setForm({ ...form, bio: e.target.value })}
                 rows={4}
+              />
+
+              <Input
+                label="نام کاربری"
+                placeholder="مثلاً hamed_404"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                helperText="۳ تا ۳۰ کاراکتر؛ فقط حروف انگلیسی، عدد و _"
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

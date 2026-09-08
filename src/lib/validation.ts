@@ -335,3 +335,13 @@ export function validateFileType(
 export const ALLOWED_FILE_EXTENSIONS_LABEL = Object.keys(ALLOWED_FILE_TYPES)
   .join(", ")
   .toUpperCase();
+
+export const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,30}$/;
+export function isValidUsername(value: unknown): value is string {
+  return typeof value === "string" && USERNAME_REGEX.test(value);
+}
+export const PROJECT_VISIBILITIES = ["public", "private"] as const;
+export type ProjectVisibility = (typeof PROJECT_VISIBILITIES)[number];
+export function isValidProjectVisibility(value: unknown): value is ProjectVisibility {
+  return value === "public" || value === "private";
+}

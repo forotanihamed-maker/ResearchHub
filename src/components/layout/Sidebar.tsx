@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
     label: "پروژه‌های من",
     href: "/dashboard/my-projects",
     icon: BookOpen,
-    roles: ["professor"],
+    roles: ["professor", "student"],
   },
   {
     label: "درخواست‌های من",
@@ -58,7 +58,7 @@ const navItems: NavItem[] = [
     label: "پیام‌ها",
     href: "/dashboard/messages",
     icon: MessageSquare,
-    roles: ["professor"],
+    roles: ["professor", "student"],
   },
   {
     label: "پروفایل",

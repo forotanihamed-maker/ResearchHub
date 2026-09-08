@@ -48,7 +48,7 @@ export default function MyProjectsPage() {
       if (!res.ok) throw new Error("خطا در دریافت پروژه‌ها");
       return res.json() as Promise<{ projects: Project[] }>;
     },
-    enabled: user?.role === "professor",
+    enabled: user?.role === "professor" || user?.role === "student",
   });
 
   const projects = data?.projects ?? [];
@@ -61,7 +61,7 @@ export default function MyProjectsPage() {
     <div>
       <TopBar
         title="پروژه‌های من"
-        subtitle="پروژه‌های پژوهشی و درخواست‌های خود را مدیریت کنید"
+        subtitle="پروژه‌هایی که ایجاد کرده‌اید را مدیریت کنید"
         actions={
           <Link href="/dashboard/my-projects/new">
             <Button>
@@ -130,7 +130,7 @@ export default function MyProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
-                role="professor"
+                role={user?.role}
               />
             ))}
           </div>

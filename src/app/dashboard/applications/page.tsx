@@ -8,6 +8,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Card, CardBody } from "@/components/ui/Card";
 import {
   statusColor,
   statusLabel,
@@ -59,6 +60,30 @@ const statusIcons: Record<string, React.ElementType> = {
 export default function ApplicationsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const invitationsQuery = useQuery({
+    queryKey: ["invitations"],
+    queryFn: async () => {
+      const res = await fetch("/api/invitations");
+      if (!res.ok) throw new Error("خطا در دریافت دعوت‌ها");
+      return res.json() as Promise<{ invitations: { id: number; projectId: number; projectTitle: string; creatorName: string; status: string; createdAt: string }[] }>;
+    },
+    enabled: user?.role === "student",
+  });
+
+  const invitationMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: "approved" | "rejected" }) => {
+      const res = await fetch(`/api/invitations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "عملیات ناموفق بود");
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["member-projects"] });
+    },
+  });
   const [statusFilter, setStatusFilter] = useState("all");
 
   const { data, isLoading } = useQuery({
@@ -101,6 +126,8 @@ export default function ApplicationsPage() {
     statusFilter === "all"
       ? apps
       : apps.filter((a) => a.status === statusFilter);
+
+  const invitations = invitationsQuery.data?.invitations ?? [];
 
   return (
     <div>

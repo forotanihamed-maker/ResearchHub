@@ -227,6 +227,9 @@ async function runFullSeed() {
         description: projectData.description,
         status: projectData.status,
         professorId,
+        creatorId: professorId,
+        creatorRole: "professor",
+        visibility: "public",
         maxMembers: projectData.maxMembers,
         deadline: projectData.deadline,
       })

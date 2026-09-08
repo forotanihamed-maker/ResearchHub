@@ -30,7 +30,7 @@ export async function GET() {
         memberCount: sql<number>`(
           select count(*)::int from project_members pm
           where pm.project_id = ${projects.id}
-            and pm.user_id <> ${projects.professorId}
+            and pm.user_id <> ${projects.creatorId}
         )`,
         pendingApplications: sql<number>`(
           select count(*)::int from applications a
@@ -39,7 +39,7 @@ export async function GET() {
         )`,
       })
       .from(projects)
-      .innerJoin(users, eq(projects.professorId, users.id))
+      .innerJoin(users, eq(projects.creatorId, users.id))
       .orderBy(desc(projects.createdAt));
 
     return NextResponse.json({ projects: rows });

@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .where(
         and(
           eq(projects.id, projectId),
-          eq(projects.professorId, authUser.userId)
+          eq(projects.creatorId, authUser.userId)
         )
       );
 

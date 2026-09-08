@@ -19,14 +19,14 @@ export async function GET() {
       const [totalProjects] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(projects)
-        .where(eq(projects.professorId, authUser.userId));
+        .where(eq(projects.creatorId, authUser.userId));
 
       const [openProjects] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(projects)
         .where(
           and(
-            eq(projects.professorId, authUser.userId),
+            eq(projects.creatorId, authUser.userId),
             eq(projects.status, "open")
           )
         );
@@ -36,7 +36,7 @@ export async function GET() {
         .from(projects)
         .where(
           and(
-            eq(projects.professorId, authUser.userId),
+            eq(projects.creatorId, authUser.userId),
             eq(projects.status, "in_progress")
           )
         );
@@ -46,7 +46,7 @@ export async function GET() {
         .from(projects)
         .where(
           and(
-            eq(projects.professorId, authUser.userId),
+            eq(projects.creatorId, authUser.userId),
             eq(projects.status, "completed")
           )
         );
@@ -55,7 +55,7 @@ export async function GET() {
       const myProjects = await db
         .select({ id: projects.id })
         .from(projects)
-        .where(eq(projects.professorId, authUser.userId));
+        .where(eq(projects.creatorId, authUser.userId));
 
       const myProjectIds = myProjects.map((p) => p.id);
 

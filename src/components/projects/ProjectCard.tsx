@@ -34,6 +34,9 @@ interface ProjectCardProps {
     description: string;
     status: string;
     type?: ProjectType;
+    creatorId?: number;
+    creatorRole?: "professor" | "student";
+    visibility?: "public" | "private";
     professorName: string;
     professorDepartment?: string | null;
     professorUniversity?: string | null;
@@ -65,6 +68,10 @@ export function ProjectCard({
           </Badge>
         </div>
 
+        {project.visibility === "private" && (
+          <div className="mb-3"><Badge className="bg-amber-50 text-amber-700 border-amber-200">🔒 خصوصی</Badge></div>
+        )}
+
         {project.type && (
           <div className="mb-3">
             <Badge className={PROJECT_TYPE_COLOR[project.type]}>
@@ -78,13 +85,14 @@ export function ProjectCard({
           {project.description}
         </p>
 
-        {/* Professor info */}
+        {/* Creator info */}
         <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg">
           <Avatar name={project.professorName} size="xs" />
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-700 truncate">
               {project.professorName}
             </p>
+            <p className="text-[11px] text-indigo-600 mt-0.5">{project.creatorRole === "student" ? "ساخته‌شده توسط دانشجو" : "ساخته‌شده توسط استاد"}</p>
             {(project.professorDepartment || project.professorUniversity) && (
               <p className="text-xs text-slate-500 truncate">
                 {project.professorDepartment}

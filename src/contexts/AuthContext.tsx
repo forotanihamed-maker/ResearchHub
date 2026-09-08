@@ -21,6 +21,7 @@ export interface User {
   university?: string | null;
   interests?: string[];
   programmingLanguages?: string[];
+  username?: string | null;
   createdAt?: string;
 }
 
