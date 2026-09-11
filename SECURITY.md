@@ -23,10 +23,10 @@
 
 | منبع | قانون |
 |---|---|
-| ویرایش/حذف پروژه | فقط استاد **مالک** همان پروژه |
-| مشاهده/تأیید/رد درخواست‌های یک پروژه | فقط استاد **مالک** همان پروژه |
+| ویرایش/حذف پروژه | فقط سازنده/مالک همان پروژه |
+| مشاهده/تأیید/رد درخواست‌های یک پروژه | فقط سازنده/مالک همان پروژه؛ پذیرش/رد دعوت نیز فقط توسط دانشجوی صاحب دعوت |
 | لغو یک درخواست | فقط دانشجوی **صاحب** همان درخواست، و فقط در وضعیت `pending` |
-| مشاهده/ارسال پیام در چت یک پروژه | فقط استاد مالک یا عضو تأییدشدهٔ همان پروژه (بررسی از طریق `projectMembers`، نه فقط نقش) |
+| مشاهده/ارسال پیام و فایل پروژه | فقط عضو/سازندهٔ پروژه؛ `deliverable` فقط توسط سازنده و پس از `completed` |
 | لیست «درخواست‌های من» | همیشه scope به `studentId` خود کاربر لاگین‌شده، نه یک پارامتر قابل‌جعل |
 
 ### IDOR (Insecure Direct Object Reference)
@@ -42,11 +42,13 @@
 | مسیر | محدودیت |
 |---|---|
 | `POST /api/auth/login` | ۵ تلاش ناموفق در ۱۵ دقیقه به‌ازای هر ایمیل؛ ۲۰ تلاش در ۱۵ دقیقه به‌ازای هر IP |
+| `POST /api/auth/register` | ۵ تلاش در ۱۵ دقیقه به‌ازای هر IP |
+| `PATCH /api/auth/password` | ۵ تلاش در ۱۵ دقیقه به‌ازای هر کاربر |
 | `POST /api/projects/[id]/messages` | ۲۰ پیام در دقیقه به‌ازای هر کاربر در هر پروژه |
 
 ⚠️ **محدودیت شناخته‌شده:** این rate limiter‌ها **in-memory** هستند (نه Redis/DB-backed). روی Vercel (سرورلس)، این یعنی محافظت فقط در سطح یک instance گرم تضمین می‌شود، نه به‌صورت قطعی در کل ناوگان instance‌ها. برای ترافیک کم Pilot این کافی و بهتر از هیچ‌چیز است؛ برای مقیاس بزرگ‌تر باید با یک store مشترک (مثل Upstash Redis) جایگزین شود.
 
-**Rate limit هنوز پیاده‌سازی نشده روی:** `POST /api/auth/register`. یعنی نظری، یک اسکریپت می‌تواند به‌سرعت چندین حساب بسازد. برای مقیاس Pilot ریسک پایینی دارد (کاربران شناخته‌شدهٔ یک دانشکده) ولی قبل از باز شدن عمومی‌تر باید اضافه شود.
+**ثبت‌نام نیز rate limit دارد**: `POST /api/auth/register` حداکثر ۵ تلاش در ۱۵ دقیقه برای هر IP را می‌پذیرد و در حالت عبور از سقف `429` و `Retry-After` برمی‌گرداند. این limiter همچنان in-memory است.
 
 ---
 
@@ -86,7 +88,7 @@
 
 ## ۸. Audit Logging
 
-رویدادهای امنیتی مهم (`login_success`, `login_failed`, `login_rate_limited`, `register_success`, `seed_denied`, `seed_executed`, `project_deleted`, `application_approved`, `application_rejected`) به‌صورت خط JSON ساختاریافته به `stdout` نوشته می‌شوند و در داشبورد Logs ورسل قابل‌مشاهده و جستجو هستند.
+رویدادهای امنیتی مهم (`login_success`, `login_failed`, `login_rate_limited`, `register_success`, `register_rate_limited`, `password_changed`, `password_change_failed`, `password_change_rate_limited`, `seed_denied`, `seed_executed`, `project_deleted`, `application_approved`, `application_rejected`, `professor_status_changed`, `project_file_uploaded`, `project_file_deleted`) به‌صورت خط JSON ساختاریافته به `stdout` نوشته می‌شوند و در داشبورد Logs ورسل قابل‌مشاهده و جستجو هستند.
 
 ⚠️ **محدودیت شناخته‌شده:** این یک audit trail سطح compliance یا tamper-proof نیست؛ فقط به‌اندازهٔ retention پلتفرم دوام دارد. برای Pilot کافی است.
 
@@ -96,12 +98,12 @@
 
 | مورد | وضعیت |
 |---|---|
-| Rate limiting روی Register | پیاده‌سازی نشده |
+| Rate limiting روی Register | پیاده‌سازی شده، ولی in-memory و per-IP |
 | Rate limiting توزیع‌شده (چند instance) | in-memory، نه Redis-backed |
 | محدودیت اندازهٔ body برای chunked requests | پوشش کامل ندارد (فقط بر پایهٔ Content-Length) |
 | Email verification | پیاده‌سازی نشده |
 | Audit log با retention تضمین‌شده | پیاده‌سازی نشده (فقط stdout/Vercel logs) |
-| ایجاد کنترل‌شدهٔ حساب Professor | پیاده‌سازی نشده (تصمیم محصولی، عمداً به بعد از Pilot موکول شده) |
+| ایجاد کنترل‌شدهٔ حساب Professor | استاد خودش ثبت‌نام می‌کند و ادمین وضعیت `professorStatus` را تأیید/رد می‌کند |
 | تست خودکار (Unit/Integration) | پیاده‌سازی نشده — سناریوهای امنیتی فعلاً فقط با بررسی دستی تأیید شده‌اند |
 
 هیچ‌کدام از این موارد برای شروع Pilot اولیهٔ کنترل‌شده (یک دانشکده، کاربران شناخته‌شده) مانع نیست، ولی باید قبل از باز شدن به مقیاس بزرگ‌تر یا عمومی رسیدگی شوند.

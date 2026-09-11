@@ -4,7 +4,7 @@
 
 ## ۱. دید کلی یک‌خطی
 
-پلتفرمی که اساتید پروژه‌ی پژوهشی تعریف می‌کنند، دانشجویان برای عضویت درخواست می‌دهند، استاد تأیید/رد می‌کند، و تیم تشکیل‌شده در یک چت گروهی با هم کار می‌کنند. یک لایه‌ی ادمین دپارتمانی هم روی این سیستم نظارت می‌کند.
+پلتفرمی که استاد یا دانشجو پروژه ایجاد می‌کند، پروژه می‌تواند عمومی یا خصوصی باشد، اعضا از طریق درخواست یا دعوت به پروژه می‌پیوندند، و تیم تشکیل‌شده در چت گروهی و فضای فایل پروژه کار می‌کند. یک لایه‌ی ادمین دپارتمانی هم روی این سیستم نظارت می‌کند.
 
 ## ۲. استک فنی
 
@@ -39,7 +39,7 @@ src/
 │   │   ├── messages/           # چت تیمی
 │   │   ├── profile/            # ویرایش پروفایل
 │   │   └── admin/              # پنل ادمین (overview, departments, messages)
-│   └── api/                    # همه‌ی endpointها — بخش ۶
+│   └── api/                    # همه‌ی endpointها — شامل auth، projects، applications، invitations، files، chat و admin
 ├── components/
 │   ├── layout/                 # Sidebar, TopBar
 │   ├── projects/                # ApplicationsPanel, ChatPanel, ProjectCard
@@ -55,9 +55,10 @@ src/
 ## ۴. مدل داده (خلاصه)
 
 ```
-users ──┬── projects (professorId) ──┬── applications (projectId, studentId → users)
-        │                            ├── projectMembers (projectId, userId → users)
-        │                            └── chatMessages (projectId, senderId → users)
+users ──┬── projects (creatorId, creatorRole) ──┬── applications (projectId, studentId → users)
+        │                                      ├── projectMembers (projectId, userId → users)
+        │                                      ├── chatMessages (projectId, senderId → users)
+        │                                      └── projectFiles (projectId, uploaderId → users)
         ├── adminDepartments (adminId → users)   [یک ادمین ↔ چند دپارتمان]
         └── directMessages (senderId, recipientId → users)  [ادمین ↔ استاد]
 ```
@@ -65,12 +66,12 @@ users ──┬── projects (professorId) ──┬── applications (proje
 نکات مهم طراحی که باید بدانید:
 
 - **`department` یک enum ثابت پستگرس با ۶ مقدار هاردکد است**، نه یک جدول. یعنی برای اضافه/تغییر دپارتمان‌ها باید migration جدید نوشت. برای گسترش به دانشکده‌ها/دانشگاه‌های مختلف، این محدودیت اصلی معماری فعلی است (به بخش ۸ نگاه کنید).
-- استاد هنگام ساخت پروژه **به‌صورت خودکار عضو `projectMembers` همان پروژه هم می‌شود** — این برای این است که هم بتواند در چت شرکت کند و هم چک‌های مالکیت یکسان کار کنند. به همین دلیل، هر جا که "تعداد اعضا" شمرده می‌شود (برای `maxMembers`، برای آمار داشبورد)، ردیف خود استاد **عمداً از شمارش حذف می‌شود** — این یک تصمیم طراحی است، نه باگ، ولی برای هر توسعه‌دهنده‌ی جدید گیج‌کننده است اگر از قبل نداند.
-- `professorStatus` (`pending` / `approved` / `rejected`) فقط برای نقش `professor` معنا دارد؛ دانشجوها همیشه `approved` ساخته می‌شوند. استاد `pending` اصلاً نمی‌تواند لاگین کند (نه این‌که لاگین کند و دسترسی محدود داشته باشد).
+- سازنده (استاد یا دانشجو) هنگام ساخت پروژه **به‌صورت خودکار عضو `projectMembers` همان پروژه هم می‌شود** — این برای این است که هم بتواند در چت شرکت کند و هم چک‌های مالکیت یکسان کار کنند. به همین دلیل، هر جا که "تعداد اعضا" شمرده می‌شود (برای `maxMembers`، برای آمار داشبورد)، ردیف خود استاد **عمداً از شمارش حذف می‌شود** — این یک تصمیم طراحی است، نه باگ، ولی برای هر توسعه‌دهنده‌ی جدید گیج‌کننده است اگر از قبل نداند.
+- `professorStatus` (`pending` / `approved` / `rejected`) فقط برای نقش `professor` معنا دارد؛ دانشجوها همیشه `approved` ساخته می‌شوند. استاد `pending` یا `rejected` اصلاً نمی‌تواند لاگین کند.
 
 ## ۵. جریان احراز هویت
 
-1. لاگین/ثبت‌نام موفق → یک JWT در کوکی HttpOnly به‌نام `auth_token` ست می‌شود (`maxAge`: ۷ روز، `secure` فقط در production).
+1. لاگین/ثبت‌نام موفق دانشجو → یک JWT در کوکی HttpOnly به‌نام `auth_token` ست می‌شود (`maxAge`: ۷ روز، `secure` فقط در production). ثبت‌نام استاد فقط حساب `pending` می‌سازد و تا تأیید ادمین کوکی ورود صادر نمی‌کند.
 2. هر صفحه‌ی سرور یا API route با `getAuthUser()` (در `lib/auth.ts`) این کوکی را می‌خواند و decode می‌کند.
 3. **هیچ session سمت سرور یا جدول refresh-token‌ای وجود ندارد** — همه‌چیز stateless و مبتنی بر خود JWT است. یعنی revoke کردن یک توکن قبل از انقضایش (مثلاً اگر یک ادمین بخواهد فوری یک نشست را باطل کند) از نظر فعلی سیستم ممکن نیست.
 4. میان‌افزار (`middleware.ts`) **فقط روی `/api/*`** matcher دارد؛ محافظت از خود صفحات (`/dashboard/*`, `/dashboard/admin/*`) در بدنه‌ی همان `page.tsx`ها با فراخوانی مستقیم `getAuthUser()` انجام می‌شود، نه در میان‌افزار.
@@ -97,7 +98,7 @@ users ──┬── projects (professorId) ──┬── applications (proje
 |---|---|
 | هش پسورد | bcryptjs، پیاده‌سازی‌شده و درست |
 | JWT در کوکی HttpOnly | بله (نه در localStorage) |
-| Rate limiting لاگین/چت | بله، ولی **درون‌حافظه‌ای** (`lib/rateLimit.ts`) — روی Vercel serverless، این محافظت فقط در محدوده‌ی یک instance گرم تضمین می‌شود، نه سراسری. برای پایلوت کوچک کافی است؛ برای ترافیک واقعی باید با Redis (مثل Upstash) جایگزین شود. **توجه:** این محدودیت روی `register` هنوز اعمال نشده. |
+| Rate limiting لاگین/ثبت‌نام/تغییر رمز/چت | بله، ولی **درون‌حافظه‌ای** (`lib/rateLimit.ts`) — روی Vercel serverless، این محافظت فقط در محدوده‌ی یک instance گرم تضمین می‌شود، نه سراسری. برای ترافیک واقعی باید با Redis/Store مشترک جایگزین شود. |
 | محافظت CSRF | بله — `middleware.ts` روی همه‌ی متدهای تغییردهنده (`POST`/`PUT`/`PATCH`/`DELETE`) هدر `Origin` (با fallback به `Referer`) را با آدرس واقعی سرور مقایسه می‌کند و در صورت عدم تطابق `403` می‌دهد |
 | محدودیت حجم درخواست | بله — همان `middleware.ts` با `Content-Length` درخواست‌های بزرگ‌تر از ۱۰۰KB را با `413` رد می‌کند (محدودیت شناخته‌شده: کلاینت با `chunked transfer-encoding` این چک را دور می‌زند) |
 | Audit log | بله (`lib/auditLog.ts`) — رویدادهای حساس (لاگین ناموفق، تأیید/رد درخواست، تغییر وضعیت استاد) ثبت می‌شوند |
