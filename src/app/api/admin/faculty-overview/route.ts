@@ -1,0 +1,127 @@
+import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { adminDepartments, projects, users } from "@/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { getAuthUser } from "@/lib/auth";
+
+// Faculty Project Control Center — V1
+//
+// Scope (Option 2, approved): an admin sees a project here only if
+//   1. the project is public (private projects are never shown here,
+//      regardless of department — no "authorized private access" concept
+//      exists yet in ResearchHub, so we do not invent one), and
+//   2. at least one project member (the creator is always a member —
+//      see POST /api/projects) belongs to one of the admin's assigned
+//      departments (adminDepartments). This also covers cross-faculty
+//      projects: any admin whose department has a participating member
+//      sees the project, not only the creator's department admin.
+//
+// This does not change /api/admin/projects, which remains intentionally
+// university-wide for its existing purpose.
+export async function GET() {
+  try {
+    const admin = await getAuthUser();
+    if (!admin)
+      return NextResponse.json(
+        { error: "احراز هویت نشده‌اید" },
+        { status: 401 }
+      );
+    if (admin.role !== "admin")
+      return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
+
+    const scopeRows = await db
+      .select({ department: adminDepartments.department })
+      .from(adminDepartments)
+      .where(eq(adminDepartments.adminId, admin.userId));
+    const departments = scopeRows.map((row) => row.department);
+
+    if (departments.length === 0) {
+      return NextResponse.json({
+        departments: [],
+        summary: { active: 0, completed: 0, capacityOpen: 0 },
+        needsAttention: { deadlinePassed: [], capacityOpen: [] },
+        projects: [],
+      });
+    }
+
+    const departmentList = sql.join(
+      departments.map((d) => sql`${d}`),
+      sql`, `
+    );
+
+    const rows = await db
+      .select({
+        id: projects.id,
+        title: projects.title,
+        type: projects.type,
+        status: projects.status,
+        creatorName: users.name,
+        creatorDepartment: users.department,
+        maxMembers: projects.maxMembers,
+        deadline: projects.deadline,
+        createdAt: projects.createdAt,
+        // Creator is excluded from the member count, matching the
+        // convention already used in /api/admin/projects.
+        memberCount: sql<number>`(
+          select count(*)::int from project_members pm
+          where pm.project_id = ${projects.id}
+            and pm.user_id <> ${projects.creatorId}
+        )`,
+        // Most recent of: project's own updatedAt, or the newest chat
+        // message (any type, including progress_update) in the project.
+        // Message *content* is never selected — only its timestamp.
+        lastActivityAt: sql<string>`GREATEST(
+          ${projects.updatedAt},
+          coalesce(
+            (select max(cm.created_at) from chat_messages cm
+              where cm.project_id = ${projects.id}),
+            ${projects.updatedAt}
+          )
+        )`,
+      })
+      .from(projects)
+      .innerJoin(users, eq(projects.creatorId, users.id))
+      .where(
+        and(
+          eq(projects.visibility, "public"),
+          sql`exists (
+            select 1 from project_members pm2
+            inner join users u2 on u2.id = pm2.user_id
+            where pm2.project_id = ${projects.id}
+              and u2.department in (${departmentList})
+          )`
+        )
+      )
+      .orderBy(desc(projects.createdAt));
+
+    const now = Date.now();
+    const active = rows.filter(
+      (p) => p.status === "open" || p.status === "in_progress"
+    );
+    const completed = rows.filter((p) => p.status === "completed");
+    const capacityOpen = active.filter((p) => p.memberCount < p.maxMembers);
+    const deadlinePassed = rows.filter(
+      (p) =>
+        p.deadline &&
+        new Date(p.deadline).getTime() < now &&
+        p.status !== "completed"
+    );
+
+    return NextResponse.json({
+      departments,
+      summary: {
+        active: active.length,
+        completed: completed.length,
+        capacityOpen: capacityOpen.length,
+      },
+      needsAttention: {
+        deadlinePassed,
+        capacityOpen,
+      },
+      projects: rows,
+    });
+  } catch (error) {
+    console.error("Faculty overview error:", error);
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500 });
+  }
+}

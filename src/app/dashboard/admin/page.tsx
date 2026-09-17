@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/Badge";
+import { formatDate, formatTimeAgo } from "@/lib/utils";
+import { PROJECT_TYPE_LABELS } from "@/lib/validation";
 import {
   Building2,
   CheckCircle2,
@@ -13,6 +15,8 @@ import {
   FlaskConical,
   XCircle,
   ArrowLeft,
+  AlertTriangle,
+  UserPlus,
 } from "lucide-react";
 
 interface Professor {
@@ -39,6 +43,37 @@ interface AdminProject {
   pendingApplications: number;
 }
 
+interface FacultyProject {
+  id: number;
+  title: string;
+  type: "thesis" | "internship" | "course" | "research";
+  status: "open" | "in_progress" | "completed";
+  creatorName: string;
+  creatorDepartment: string;
+  memberCount: number;
+  maxMembers: number;
+  createdAt: string;
+  deadline: string | null;
+  lastActivityAt: string;
+}
+
+interface FacultyOverview {
+  departments: string[];
+  summary: { active: number; completed: number; capacityOpen: number };
+  needsAttention: {
+    deadlinePassed: FacultyProject[];
+    capacityOpen: FacultyProject[];
+  };
+  projects: FacultyProject[];
+}
+
+const emptyOverview: FacultyOverview = {
+  departments: [],
+  summary: { active: 0, completed: 0, capacityOpen: 0 },
+  needsAttention: { deadlinePassed: [], capacityOpen: [] },
+  projects: [],
+};
+
 export default function AdminPage() {
   const [stats, setStats] = useState({
     students: 0,
@@ -48,6 +83,7 @@ export default function AdminPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [projects, setProjects] = useState<AdminProject[]>([]);
+  const [overview, setOverview] = useState<FacultyOverview>(emptyOverview);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -55,35 +91,49 @@ export default function AdminPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [statsRes, departmentsRes, professorsRes, projectsRes] =
-        await Promise.all([
-          fetch("/api/admin/stats"),
-          fetch("/api/admin/departments"),
-          fetch("/api/admin/professors"),
-          fetch("/api/admin/projects"),
-        ]);
+      const [
+        statsRes,
+        departmentsRes,
+        professorsRes,
+        projectsRes,
+        overviewRes,
+      ] = await Promise.all([
+        fetch("/api/admin/stats"),
+        fetch("/api/admin/departments"),
+        fetch("/api/admin/professors"),
+        fetch("/api/admin/projects"),
+        fetch("/api/admin/faculty-overview"),
+      ]);
 
       if (
         !statsRes.ok ||
         !departmentsRes.ok ||
         !professorsRes.ok ||
-        !projectsRes.ok
+        !projectsRes.ok ||
+        !overviewRes.ok
       ) {
         throw new Error();
       }
 
-      const [statsData, departmentsData, professorsData, projectsData] =
-        await Promise.all([
-          statsRes.json(),
-          departmentsRes.json(),
-          professorsRes.json(),
-          projectsRes.json(),
-        ]);
+      const [
+        statsData,
+        departmentsData,
+        professorsData,
+        projectsData,
+        overviewData,
+      ] = await Promise.all([
+        statsRes.json(),
+        departmentsRes.json(),
+        professorsRes.json(),
+        projectsRes.json(),
+        overviewRes.json(),
+      ]);
 
       setStats(statsData);
       setDepartments(departmentsData.selected ?? []);
       setProfessors(professorsData.professors ?? []);
       setProjects(projectsData.projects ?? []);
+      setOverview(overviewData ?? emptyOverview);
       setError("");
     } catch {
       setError(
@@ -196,6 +246,130 @@ export default function AdminPage() {
               <p className="text-sm text-amber-700">
                 هنوز گروه آموزشی‌ای تخصیص داده نشده است.
               </p>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h3 className="font-semibold text-slate-900">
+              مرکز کنترل پروژه‌های دانشکده
+            </h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              فقط پروژه‌های عمومی که حداقل یکی از اعضایشان در گروه‌های آموزشی
+              تحت مدیریت شماست.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+            <Metric
+              title="پروژه‌های فعال"
+              value={overview.summary.active}
+              icon={FlaskConical}
+            />
+            <Metric
+              title="پروژه‌های تکمیل‌شده"
+              value={overview.summary.completed}
+              icon={CheckCircle2}
+            />
+            <Metric
+              title="ظرفیت خالی"
+              value={overview.summary.capacityOpen}
+              icon={UserPlus}
+            />
+          </div>
+
+          <div className="border-t border-slate-100 px-5 py-4">
+            <h4 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+              <AlertTriangle size={15} className="text-amber-600" />
+              پروژه‌های نیازمند توجه
+            </h4>
+            <p className="mt-0.5 text-xs text-slate-500">
+              این‌ها هشدارهای عملیاتی‌اند، نه لزوماً مشکل پروژه.
+            </p>
+          </div>
+          <div className="divide-y divide-slate-100 border-t border-slate-100">
+            {loading ? (
+              <div className="p-5 text-sm text-slate-500">
+                در حال بارگذاری...
+              </div>
+            ) : overview.needsAttention.deadlinePassed.length === 0 &&
+              overview.needsAttention.capacityOpen.length === 0 ? (
+              <div className="p-5 text-sm text-slate-500">
+                در حال حاضر موردی نیازمند توجه نیست.
+              </div>
+            ) : (
+              <>
+                {overview.needsAttention.deadlinePassed.map((p) => (
+                  <AttentionRow
+                    key={`deadline-${p.id}`}
+                    project={p}
+                    reason={`مهلت انجام گذشته (${formatDate(p.deadline)})`}
+                    tone="amber"
+                  />
+                ))}
+                {overview.needsAttention.capacityOpen.map((p) => (
+                  <AttentionRow
+                    key={`capacity-${p.id}`}
+                    project={p}
+                    reason={`ظرفیت تکمیل نشده (${p.memberCount}/${p.maxMembers})`}
+                    tone="slate"
+                  />
+                ))}
+              </>
+            )}
+          </div>
+
+          <div className="border-t border-slate-100 px-5 py-4">
+            <h4 className="text-sm font-semibold text-slate-900">
+              فهرست پروژه‌های محدوده شما
+            </h4>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {loading ? (
+              <div className="p-5 text-sm text-slate-500">
+                در حال بارگذاری...
+              </div>
+            ) : overview.projects.length === 0 ? (
+              <div className="p-5 text-sm text-slate-500">
+                پروژه‌ای در محدوده گروه‌های آموزشی شما یافت نشد.
+              </div>
+            ) : (
+              overview.projects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/dashboard/projects/${project.id}`}
+                  className="block px-5 py-4 hover:bg-slate-50"
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          {project.title}
+                        </p>
+                        <ProjectStatus status={project.status} />
+                        <Badge className="bg-slate-100 text-slate-600">
+                          {PROJECT_TYPE_LABELS[project.type]}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {project.creatorName} · {project.creatorDepartment}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-slate-500">
+                      <span>
+                        {project.memberCount}/{project.maxMembers} عضو
+                      </span>
+                      {project.deadline && (
+                        <span>مهلت انجام: {formatDate(project.deadline)}</span>
+                      )}
+                      <span>
+                        آخرین فعالیت: {formatTimeAgo(project.lastActivityAt)}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))
             )}
           </div>
         </section>
@@ -368,6 +542,40 @@ function Status({ status }: { status: Professor["professorStatus"] }) {
       <XCircle size={12} />
       ردشده
     </Badge>
+  );
+}
+function AttentionRow({
+  project,
+  reason,
+  tone,
+}: {
+  project: FacultyProject;
+  reason: string;
+  tone: "amber" | "slate";
+}) {
+  return (
+    <Link
+      href={`/dashboard/projects/${project.id}`}
+      className="flex flex-col gap-1 px-5 py-3 hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-slate-900">
+          {project.title}
+        </p>
+        <p className="text-xs text-slate-400">
+          {project.creatorName} · {project.creatorDepartment}
+        </p>
+      </div>
+      <span
+        className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+          tone === "amber"
+            ? "bg-amber-50 text-amber-700"
+            : "bg-slate-100 text-slate-600"
+        }`}
+      >
+        {reason}
+      </span>
+    </Link>
   );
 }
 function ProjectStatus({ status }: { status: AdminProject["status"] }) {
