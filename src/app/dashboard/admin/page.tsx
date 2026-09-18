@@ -55,22 +55,20 @@ interface FacultyProject {
   createdAt: string;
   deadline: string | null;
   lastActivityAt: string;
+  reasons: string[];
 }
 
 interface FacultyOverview {
   departments: string[];
-  summary: { active: number; completed: number; capacityOpen: number };
-  needsAttention: {
-    deadlinePassed: FacultyProject[];
-    capacityOpen: FacultyProject[];
-  };
+  summary: { active: number; completed: number; capacityAvailable: number };
+  attention: FacultyProject[];
   projects: FacultyProject[];
 }
 
 const emptyOverview: FacultyOverview = {
   departments: [],
-  summary: { active: 0, completed: 0, capacityOpen: 0 },
-  needsAttention: { deadlinePassed: [], capacityOpen: [] },
+  summary: { active: 0, completed: 0, capacityAvailable: 0 },
+  attention: [],
   projects: [],
 };
 
@@ -256,8 +254,9 @@ export default function AdminPage() {
               مرکز کنترل پروژه‌های دانشکده
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              فقط پروژه‌های عمومی که حداقل یکی از اعضایشان در گروه‌های آموزشی
-              تحت مدیریت شماست.
+              وضعیت پروژه‌ها و موارد نیازمند توجه را در یک نگاه بررسی کنید — فقط
+              پروژه‌های عمومی که حداقل یکی از اعضایشان در گروه‌های آموزشی تحت
+              مدیریت شماست.
             </p>
           </div>
 
@@ -273,8 +272,8 @@ export default function AdminPage() {
               icon={CheckCircle2}
             />
             <Metric
-              title="ظرفیت خالی"
-              value={overview.summary.capacityOpen}
+              title="پروژه‌های دارای ظرفیت"
+              value={overview.summary.capacityAvailable}
               icon={UserPlus}
             />
           </div>
@@ -282,7 +281,7 @@ export default function AdminPage() {
           <div className="border-t border-slate-100 px-5 py-4">
             <h4 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
               <AlertTriangle size={15} className="text-amber-600" />
-              پروژه‌های نیازمند توجه
+              نیازمند توجه
             </h4>
             <p className="mt-0.5 text-xs text-slate-500">
               این‌ها هشدارهای عملیاتی‌اند، نه لزوماً مشکل پروژه.
@@ -293,30 +292,14 @@ export default function AdminPage() {
               <div className="p-5 text-sm text-slate-500">
                 در حال بارگذاری...
               </div>
-            ) : overview.needsAttention.deadlinePassed.length === 0 &&
-              overview.needsAttention.capacityOpen.length === 0 ? (
+            ) : overview.attention.length === 0 ? (
               <div className="p-5 text-sm text-slate-500">
                 در حال حاضر موردی نیازمند توجه نیست.
               </div>
             ) : (
-              <>
-                {overview.needsAttention.deadlinePassed.map((p) => (
-                  <AttentionRow
-                    key={`deadline-${p.id}`}
-                    project={p}
-                    reason={`مهلت انجام گذشته (${formatDate(p.deadline)})`}
-                    tone="amber"
-                  />
-                ))}
-                {overview.needsAttention.capacityOpen.map((p) => (
-                  <AttentionRow
-                    key={`capacity-${p.id}`}
-                    project={p}
-                    reason={`ظرفیت تکمیل نشده (${p.memberCount}/${p.maxMembers})`}
-                    tone="slate"
-                  />
-                ))}
-              </>
+              overview.attention.map((p) => (
+                <AttentionRow key={p.id} project={p} />
+              ))
             )}
           </div>
 
@@ -366,6 +349,16 @@ export default function AdminPage() {
                       <span>
                         آخرین فعالیت: {formatTimeAgo(project.lastActivityAt)}
                       </span>
+                      {project.reasons.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                          <AlertTriangle size={11} />
+                          نیازمند توجه
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">
+                          بدون مورد
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Link>
@@ -544,37 +537,38 @@ function Status({ status }: { status: Professor["professorStatus"] }) {
     </Badge>
   );
 }
-function AttentionRow({
-  project,
-  reason,
-  tone,
-}: {
-  project: FacultyProject;
-  reason: string;
-  tone: "amber" | "slate";
-}) {
+function AttentionRow({ project }: { project: FacultyProject }) {
   return (
     <Link
       href={`/dashboard/projects/${project.id}`}
-      className="flex flex-col gap-1 px-5 py-3 hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+      className="flex flex-col gap-2 px-5 py-3 hover:bg-slate-50 md:flex-row md:items-start md:justify-between"
     >
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-900">
-          {project.title}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-medium text-slate-900">
+            {project.title}
+          </p>
+          <ProjectStatus status={project.status} />
+        </div>
         <p className="text-xs text-slate-400">
           {project.creatorName} · {project.creatorDepartment}
         </p>
+        <p className="mt-1 text-xs text-slate-500">
+          {project.memberCount}/{project.maxMembers} عضو
+          {project.deadline && ` · مهلت انجام: ${formatDate(project.deadline)}`}
+          {` · آخرین فعالیت: ${formatTimeAgo(project.lastActivityAt)}`}
+        </p>
       </div>
-      <span
-        className={`inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-          tone === "amber"
-            ? "bg-amber-50 text-amber-700"
-            : "bg-slate-100 text-slate-600"
-        }`}
-      >
-        {reason}
-      </span>
+      <ul className="flex shrink-0 flex-col gap-1">
+        {project.reasons.map((reason) => (
+          <li
+            key={reason}
+            className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
+          >
+            {reason}
+          </li>
+        ))}
+      </ul>
     </Link>
   );
 }

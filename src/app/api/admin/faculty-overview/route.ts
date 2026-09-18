@@ -4,7 +4,15 @@ import { adminDepartments, projects, users } from "@/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 
-// Faculty Project Control Center — V1
+// Faculty Project Control Center — V2
+//
+// V2 change (on top of V1's scope, unchanged): projects are annotated with
+// an explicit `reasons` array explaining why they need attention, instead
+// of two separate parallel lists. Only "overdue" is a valid attention
+// reason in this version — available capacity is informational only (see
+// Rule B) and is never added to `reasons`. `attention` is the subset of
+// `projects` whose `reasons` array is non-empty, ordered by nearest-passed
+// deadline first, then by most recent activity.
 //
 // Scope (Option 2, approved): an admin sees a project here only if
 //   1. the project is public (private projects are never shown here,
@@ -49,8 +57,8 @@ export async function GET() {
     if (departments.length === 0) {
       return NextResponse.json({
         departments: [],
-        summary: { active: 0, completed: 0, capacityOpen: 0 },
-        needsAttention: { deadlinePassed: [], capacityOpen: [] },
+        summary: { active: 0, completed: 0, capacityAvailable: 0 },
+        attention: [],
         projects: [],
       });
     }
@@ -111,26 +119,49 @@ export async function GET() {
       (p) => p.status === "open" || p.status === "in_progress"
     );
     const completed = rows.filter((p) => p.status === "completed");
-    const capacityOpen = active.filter((p) => p.memberCount < p.maxMembers);
-    const deadlinePassed = rows.filter(
-      (p) =>
-        p.deadline &&
-        new Date(p.deadline).getTime() < now &&
-        p.status !== "completed"
+    // Available capacity is informational only (Rule B) — it is reflected
+    // in the summary card and in each project's own member/capacity
+    // figures, but it is never added to a project's `reasons` and never
+    // makes a project appear in `attention`.
+    const capacityAvailable = active.filter(
+      (p) => p.memberCount < p.maxMembers
     );
+
+    // Rule A — the only attention reason approved for V2. A completed
+    // project is never overdue, regardless of its deadline.
+    const withReasons = rows.map((p) => {
+      const reasons: string[] = [];
+      const isOverdue =
+        p.deadline !== null &&
+        new Date(p.deadline).getTime() < now &&
+        p.status !== "completed";
+      if (isOverdue) reasons.push("مهلت انجام گذشته است");
+      return { ...p, reasons };
+    });
+
+    const attention = withReasons
+      .filter((p) => p.reasons.length > 0)
+      .sort((a, b) => {
+        // Overdue-only in V2, so this is effectively: nearest-passed
+        // deadline first, then most recently active as a tiebreaker.
+        const deadlineDiff =
+          (a.deadline as Date).getTime() - (b.deadline as Date).getTime();
+        if (deadlineDiff !== 0) return deadlineDiff;
+        return (
+          new Date(b.lastActivityAt).getTime() -
+          new Date(a.lastActivityAt).getTime()
+        );
+      });
 
     return NextResponse.json({
       departments,
       summary: {
         active: active.length,
         completed: completed.length,
-        capacityOpen: capacityOpen.length,
+        capacityAvailable: capacityAvailable.length,
       },
-      needsAttention: {
-        deadlinePassed,
-        capacityOpen,
-      },
-      projects: rows,
+      attention,
+      projects: withReasons,
     });
   } catch (error) {
     console.error("Faculty overview error:", error);
