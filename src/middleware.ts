@@ -23,10 +23,23 @@ import { NextResponse, NextRequest } from "next/server";
  *    Content-Length) bypasses this specific check. For this app's simple
  *    JSON-only API surface that's a low-risk gap, but it's not a byte-for-
  *    byte guarantee — a stronger version would stream-count the body.
+ *
+ *    File uploads (project files / chat attachments) use
+ *    multipart/form-data and are allowed up to MAX_FILE_SIZE_BYTES
+ *    (10MB, enforced in lib/validation.ts + the files route handler).
+ *    The 100KB cap below was sized for this app's JSON-only endpoints
+ *    and predates file upload support — applying it to multipart
+ *    requests too was blocking every real upload before it ever
+ *    reached the route handler. Multipart requests get their own,
+ *    larger ceiling here as a coarse early guard; the precise 10MB
+ *    limit is still enforced downstream regardless.
  */
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const MAX_BODY_BYTES = 100 * 1024; // 100 KB — comfortably covers this app's JSON payloads
+const MAX_BODY_BYTES = 100 * 1024; // 100 KB — this app's JSON payloads
+// Slightly above lib/validation.ts's MAX_FILE_SIZE_BYTES (10MB) to leave
+// room for multipart boundaries/other form fields (context, chatMessageId).
+const MAX_MULTIPART_BODY_BYTES = 11 * 1024 * 1024; // 11 MB
 
 export function middleware(req: NextRequest) {
   if (!MUTATING_METHODS.has(req.method)) {
@@ -34,8 +47,12 @@ export function middleware(req: NextRequest) {
   }
 
   // ---- 1. Body size guard ----
+  const contentType = req.headers.get("content-type") ?? "";
+  const isMultipart = contentType.startsWith("multipart/form-data");
+  const bodyLimit = isMultipart ? MAX_MULTIPART_BODY_BYTES : MAX_BODY_BYTES;
+
   const contentLength = req.headers.get("content-length");
-  if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
+  if (contentLength && Number(contentLength) > bodyLimit) {
     return NextResponse.json(
       { error: "Request body too large" },
       { status: 413 }

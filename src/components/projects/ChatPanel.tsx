@@ -12,6 +12,10 @@ import {
   Paperclip,
   Download,
   CheckCircle2,
+  Pencil,
+  Trash2,
+  X,
+  Check,
 } from "lucide-react";
 import { formatTimeAgo, formatFileSize } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -44,6 +48,10 @@ export function ChatPanel({ projectId }: { projectId: number }) {
   const [attachError, setAttachError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // د.۱۱ — ویرایش/حذف پیام: فقط برای پیام خود کاربر (isOwn)، همیشه با
+  // بررسی مالکیت در سرور، صرف‌نظر از این‌که UI چه دکمه‌ای نشان می‌دهد.
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["messages", projectId],
@@ -167,6 +175,59 @@ export function ChatPanel({ projectId }: { projectId: number }) {
     onError: (err: Error) => setAttachError(err.message),
   });
 
+  const editMutation = useMutation({
+    mutationFn: async ({ id, content }: { id: number; content: string }) => {
+      const res = await fetch(`/api/projects/${projectId}/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "ویرایش پیام ناموفق بود");
+      return data.message as Message;
+    },
+    onSuccess: () => {
+      setEditingMessageId(null);
+      queryClient.invalidateQueries({ queryKey: ["messages", projectId] });
+    },
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/projects/${projectId}/messages/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "حذف پیام ناموفق بود");
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", projectId] });
+    },
+  });
+
+  const startEdit = (msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditContent(msg.content);
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditContent("");
+  };
+
+  const saveEdit = (id: number) => {
+    const trimmed = editContent.trim();
+    if (!trimmed) return;
+    editMutation.mutate({ id, content: trimmed });
+  };
+
+  const handleDeleteMessage = (id: number) => {
+    if (window.confirm("این پیام حذف شود؟")) {
+      deleteMessageMutation.mutate(id);
+    }
+  };
+
   const handleAttachClick = () => fileInputRef.current?.click();
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,6 +278,7 @@ export function ChatPanel({ projectId }: { projectId: number }) {
             // وسط گفتگو نمایش داده می‌شوند، نه یک حباب چت معمولی — همان
             // حسی که یک تاریخچه‌ی commit به آدم می‌دهد.
             if (msg.type === "progress_update") {
+              const isEditing = editingMessageId === msg.id;
               return (
                 <div key={msg.id} className="flex justify-center">
                   <div className="max-w-[85%] bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-start gap-2">
@@ -224,15 +286,59 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                       size={16}
                       className="text-emerald-600 shrink-0 mt-0.5"
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-emerald-700 font-medium">
                         {isOwn ? "شما" : msg.senderName} پیشرفت ثبت کرد ·{" "}
                         {formatTimeAgo(msg.createdAt)}
                       </p>
-                      <p className="text-sm text-emerald-900 mt-0.5">
-                        {msg.content}
-                      </p>
+                      {isEditing ? (
+                        <div className="mt-1 space-y-1.5">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            rows={2}
+                            className="w-full rounded-lg border border-emerald-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => saveEdit(msg.id)}
+                              disabled={editMutation.isPending}
+                              className="rounded-md bg-emerald-600 text-white p-1"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="rounded-md bg-white border border-emerald-300 p-1"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-emerald-900 mt-0.5">
+                          {msg.content}
+                        </p>
+                      )}
                     </div>
+                    {isOwn && !isEditing && (
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => startEdit(msg)}
+                          className="text-emerald-600 hover:text-emerald-800 p-1"
+                          title="ویرایش"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMessage(msg.id)}
+                          className="text-emerald-600 hover:text-red-600 p-1"
+                          title="حذف"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -280,14 +386,61 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                   )}
                   <div
                     className={cn(
-                      "rounded-2xl text-sm leading-relaxed",
+                      "group relative rounded-2xl text-sm leading-relaxed",
                       msg.attachment ? "p-1.5" : "px-4 py-2.5",
                       isOwn
                         ? "bg-indigo-600 text-white rounded-e-sm"
                         : "bg-slate-100 text-slate-900 rounded-s-sm"
                     )}
                   >
-                    {msg.attachment ? (
+                    {isOwn && editingMessageId !== msg.id && (
+                      <div className="absolute -top-3 start-1 hidden group-hover:flex gap-1 bg-white border border-slate-200 rounded-lg shadow-sm p-0.5">
+                        <button
+                          onClick={() => startEdit(msg)}
+                          className="text-slate-500 hover:text-indigo-600 p-1"
+                          title="ویرایش"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMessage(msg.id)}
+                          className="text-slate-500 hover:text-red-600 p-1"
+                          title="حذف"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
+                    {editingMessageId === msg.id ? (
+                      <div className="space-y-1.5 px-1 py-1 min-w-[180px]">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={2}
+                          className={cn(
+                            "w-full rounded-lg border px-2 py-1 text-sm focus:outline-none focus:ring-2",
+                            isOwn
+                              ? "border-indigo-300 text-slate-900 focus:ring-indigo-300"
+                              : "border-slate-300 focus:ring-indigo-500"
+                          )}
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => saveEdit(msg.id)}
+                            disabled={editMutation.isPending}
+                            className="rounded-md bg-white text-indigo-600 p-1"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="rounded-md bg-white text-slate-500 p-1"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : msg.attachment ? (
                       <a
                         href={msg.attachment.fileUrl}
                         target="_blank"
