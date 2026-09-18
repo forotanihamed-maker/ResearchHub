@@ -10,14 +10,25 @@ import { getAuthUser } from "@/lib/auth";
 //   1. the project is public (private projects are never shown here,
 //      regardless of department — no "authorized private access" concept
 //      exists yet in ResearchHub, so we do not invent one), and
-//   2. at least one project member (the creator is always a member —
+//   2. the project was created by a professor (creatorRole = "professor").
+//      Student-created projects are excluded entirely — Product decision,
+//      Model A: ResearchHub's current focus is faculty/departmental
+//      projects and professor–student collaboration; a student's own
+//      project (personal or team-recruiting) is not faculty-managed
+//      material, regardless of its visibility setting. This is checked
+//      on the project row directly (projects.creatorRole), not inferred
+//      from membership, and
+//   3. at least one project member (the creator is always a member —
 //      see POST /api/projects) belongs to one of the admin's assigned
 //      departments (adminDepartments). This also covers cross-faculty
 //      projects: any admin whose department has a participating member
 //      sees the project, not only the creator's department admin.
 //
 // This does not change /api/admin/projects, which remains intentionally
-// university-wide for its existing purpose.
+// university-wide for its existing purpose. It also does not change any
+// student-facing capability (creating/publishing/recruiting for a project
+// remains exactly as it was) — this filter only affects what this one
+// admin-facing endpoint returns.
 export async function GET() {
   try {
     const admin = await getAuthUser();
@@ -84,6 +95,7 @@ export async function GET() {
       .where(
         and(
           eq(projects.visibility, "public"),
+          eq(projects.creatorRole, "professor"),
           sql`exists (
             select 1 from project_members pm2
             inner join users u2 on u2.id = pm2.user_id
