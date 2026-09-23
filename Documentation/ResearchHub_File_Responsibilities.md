@@ -1,199 +1,507 @@
-# ResearchHub — خلاصه مسئولیت فایل‌ها (نسخهٔ به‌روزشده و تأییدشده)
+# ResearchHub — مسئولیت فایل‌ها (نسخهٔ همگام با ساختار فعلی)
 
-> بر خلاف نسخهٔ قبلی، این سند بر اساس **خواندن مستقیم محتوای هر فایل** نوشته شده، نه فقط حدس از روی نام و مسیر. جایی که در طول بررسی یک نکتهٔ فنی مهم یا یک باگ کشف و رفع شده، اشاره شده.
+> تاریخ بازبینی: ۲۰۲۶-۰۹-۲۴
+>
+> این سند مسئولیت فایل‌ها را بر اساس مسیر و محتوای کد ارسالی تنظیم می‌کند. مواردی که صرفاً از مستندات قبلی شناخته شده‌اند از مواردی که در archive کد مشاهده شده‌اند تفکیک شده‌اند.
 
-## 1. فایل‌های ریشه پروژه
+## 1. فایل‌های ریشه
 
-| فایل                                | مسئولیت واقعی                                                                                        |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `PILOT_SETUP.md`                    | راهنمای راه‌اندازی نسخهٔ Pilot؛ شامل جدول ایمیل/رمز حساب‌های دمو (اخیراً با دیتابیس واقعی هماهنگ شد) |
-| `README.md`                         | معرفی کلی پروژه، استک فنی و لینک به مستندات دیگر                                                     |
-| `SECURITY.md`                       | نکات و سیاست‌های امنیتی پروژه                                                                        |
-| `drizzle.config.json`               | تنظیمات Drizzle به فرمت JSON — **تکراری** با نسخهٔ `.ts`، پیشنهاد حذف                                |
-| `drizzle.config.ts`                 | تنظیمات اصلی Drizzle ORM برای اتصال migration به دیتابیس Postgres                                    |
-| `next-env.d.ts`                     | تعریف خودکار تایپ‌های Next.js (فایل تولیدی، دستی ادیت نمی‌شود)                                       |
-| `next.config.ts`                    | تنظیمات Next.js؛ بدون rewrite/redirect سفارشی برای مسیرهای admin                                     |
-| `package.json`                      | وابستگی‌ها و اسکریپت‌ها (Next 16، React 19، Drizzle، bcryptjs، jsonwebtoken، React Query)            |
-| `package-lock.json`                 | قفل نسخهٔ دقیق وابستگی‌های npm                                                                       |
-| `postcss.config.mjs`                | تنظیمات PostCSS برای Tailwind 4                                                                      |
-| `tsconfig.json`                     | تنظیمات کامپایلر TypeScript                                                                          |
-| `tsconfig.tsbuildinfo`              | فایل کش build تایپ‌اسکریپت — نباید در Git commit شود                                                 |
-| `vercel.json`                       | تنظیمات دیپلوی روی Vercel                                                                            |
+| فایل                   | مسئولیت                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| `README.md`            | معرفی کلی پروژه، stack و مسیر مستندات                              |
+| `PILOT_SETUP.md`       | راه‌اندازی Pilot و اطلاعات عملیاتی مربوط به حساب‌های دمو           |
+| `SECURITY.md`          | مستند امنیتی پروژه                                                 |
+| `package.json`         | وابستگی‌ها و scriptهای npm                                         |
+| `package-lock.json`    | قفل نسخهٔ وابستگی‌ها                                               |
+| `next.config.ts`       | تنظیمات Next.js                                                    |
+| `next-env.d.ts`        | تایپ‌های تولیدی Next.js                                            |
+| `tsconfig.json`        | تنظیمات TypeScript                                                 |
+| `tsconfig.tsbuildinfo` | cache/build information؛ نباید فایل source تلقی شود                |
+| `drizzle.config.ts`    | تنظیمات Drizzle                                                    |
+| `drizzle.config.json`  | تنظیمات Drizzle به JSON؛ هم‌پوشان با `.ts` و نیازمند تصمیم نگهداری |
+| `postcss.config.mjs`   | تنظیمات PostCSS                                                    |
+| `vercel.json`          | تنظیمات deployment روی Vercel                                      |
 
-## 2. Database Migrations 🆕
+## 2. Middleware
 
-| فایل                                           | مسئولیت واقعی                                                                                                                    |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `drizzle/0000_nervous_malcolm_colcord.sql` | migration اولیهٔ schema |
-| `migrations/20260818_admin_panel.sql` | جداول `admin_departments` و `direct_messages` |
-| `migrations/20260906_project_type_and_progress.sql` | نوع پروژه و زیرساخت progress/message changes |
-| `migrations/20260908_student_projects_private_invites.sql` | creator/username/visibility/invitation و backward compatibility پروژه‌ها |
+### `src/middleware.ts`
 
-## 3. Middleware
+مسئولیت:
 
-| فایل                | مسئولیت واقعی                                                                                                                                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/middleware.ts` | با `matcher: "/api/:path*"` **فقط روی درخواست‌های API** اجرا می‌شود؛ روی رندر صفحات (مثل `/admin` یا `/dashboard`) هیچ اثری ندارد — حفاظت از صفحات در خود `page.tsx`ها با `getAuthUser()` انجام می‌شود |
+- matcher روی `/api/:path*`
+- اعمال محدودیت اندازهٔ body
+- محدودیت حدود 100KB برای bodyهای غیر-multipart
+- محدودیت حدود 11MB برای multipart
+- بررسی Origin/Referer برای mutationهای API
+- جلوگیری از برخی درخواست‌های cross-origin ناخواسته
 
-## 4. API Routes
+این middleware جایگزین authorization route نیست؛ هر route باید auth و authorization خود را نیز بررسی کند.
 
-| فایل                                                      | مسئولیت واقعی                                                                                                                                         |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/api/auth/login/route.ts`                         | بررسی rate-limit، جست‌وجوی ایمیل، مقایسهٔ bcrypt، بلاک‌کردن استادهای `pending`، صدور کوکی JWT                                                         |
-| `src/app/api/auth/logout/route.ts`                        | صرفاً کوکی `auth_token` را با تاریخ گذشته خالی می‌کند                                                                                                 |
-| `src/app/api/auth/me/route.ts`                            | برگرداندن پروفایل کاربر لاگین‌شده از روی کوکی؛ همچنین (با متد PATCH در فایل کامل) ویرایش پروفایل                                                      |
-| `src/app/api/auth/register/route.ts`                      | ثبت‌نام؛ اساتید با وضعیت `pending` ساخته می‌شوند و باید توسط ادمین تأیید شوند، دانشجوها بلافاصله `approved`                                           |
-| `src/app/api/applications/route.ts`                       | فقط برای دانشجو: لیست تمام درخواست‌های عضویتی که خودش فرستاده، به‌همراه اطلاعات پروژه و استاد                                                         |
-| `src/app/api/dashboard/stats/route.ts`                    | آمار داشبورد شخصی؛ برای استاد (تعداد پروژه‌ها به تفکیک وضعیت) و برای دانشجو (تعداد درخواست‌ها) جداگانه محاسبه می‌شود                                  |
-| `src/app/api/health/route.ts`                             | یک `select 1` ساده روی دیتابیس برای health-check                                                                                                      |
-| `src/app/api/projects/route.ts`                           | GET: کاتالوگ/پروژه‌های من/پروژه‌های چت با scope نقش و visibility؛ POST: ساخت پروژه توسط استاد یا دانشجو |
-| `src/app/api/projects/[id]/route.ts`                      | GET جزئیات، PATCH و DELETE پروژه توسط creator؛ مدیریت status/type/visibility/capacity/deadline و invite token |
-| `src/app/api/projects/[id]/applications/route.ts`         | GET: لیست درخواست‌های عضویت یک پروژه (فقط استاد مالک می‌بیند)؛ POST: ثبت درخواست عضویت توسط دانشجو                                                    |
-| `src/app/api/projects/[id]/applications/[appId]/route.ts` | PATCH: تأیید/رد توسط creator یا لغو توسط دانشجوی صاحب application؛ approval با transaction/row lock و audit log |
-| `src/app/api/projects/[id]/messages/route.ts`             | چت گروهی پروژه، شامل `text`/`progress_update`، محدود به اعضا و rate-limit ۲۰ پیام در دقیقه |
-| `src/app/api/seed/route.ts`                               | seed/diagnostics پشت `SEED_SECRET`؛ اکشن‌های `clear`/`force`/`list`/`check-schema` |
-| `src/app/api/auth/password/route.ts` | تغییر رمز با تأیید رمز فعلی و rate-limit مستقل |
-| `src/app/api/invitations/route.ts` | فهرست دعوت‌های دریافتی دانشجو |
-| `src/app/api/invitations/[id]/route.ts` | پذیرش/رد invitation توسط دانشجوی صاحب آن |
-| `src/app/api/invites/[token]/route.ts` | پیوستن دانشجو به پروژه private از طریق invite token |
-| `src/app/api/projects/[id]/invite/route.ts` | دعوت مستقیم دانشجو با username توسط creator |
-| `src/app/api/projects/[id]/members/[userId]/route.ts` | حذف عضو توسط creator؛ creator قابل حذف نیست |
-| `src/app/api/projects/[id]/files/route.ts` | لیست/آپلود فایل‌های project با contextهای chat/document/deliverable و Vercel Blob |
-| `src/app/api/projects/[id]/files/[fileId]/route.ts` | حذف فایل توسط uploader یا creator |
+## 3. Authentication API
 
-### 🆕 API پنل ادمین
+### `src/app/api/auth/login/route.ts`
 
-| فایل                                     | مسئولیت واقعی                                                                                                                  |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `src/app/api/admin/stats/route.ts`       | آمار دانشجو/استاد **محدود به دپارتمان‌های تخصیص‌یافته به همان ادمین**؛ تعداد پروژه‌ها عمداً سراسری (بدون محدودیت دپارتمان) است |
-| `src/app/api/admin/departments/route.ts` | GET/PATCH لیست دپارتمان‌های تحت مدیریت یک ادمین خاص (جدول `admin_departments`)                                                 |
-| `src/app/api/admin/professors/route.ts`  | لیست اساتید در محدودهٔ دپارتمانی ادمین + تأیید/رد ثبت‌نام استاد (`professorStatus`)                                            |
-| `src/app/api/admin/projects/route.ts`    | لیست تمام پروژه‌های دانشگاه برای نظارت ادمین (سراسری، بدون فیلتر دپارتمان)                                                     |
-| `src/app/api/admin/messages/route.ts`    | پیام‌رسانی مستقیم دوطرفه بین ادمین و اساتید هم‌دپارتمان (جدول `direct_messages`)                                               |
+مسئولیت:
 
-## 5. صفحات `src/app`
+- normalize کردن email
+- rate limit با email و IP
+- جست‌وجوی user
+- مقایسهٔ bcrypt
+- بررسی `professorStatus`
+- جلوگیری از ورود استاد `pending` یا `rejected`
+- صدور JWT
+- تنظیم `auth_token` cookie
+- ثبت audit eventهای login
 
-| فایل                                         | مسئولیت واقعی                                                                                                                    |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/layout.tsx`                         | Layout ریشه؛ فونت Inter + `QueryProvider` + `AuthProvider`                                                                       |
-| `src/app/page.tsx`                           | صفحهٔ اصلی/لندینگ؛ اگر کاربر لاگین باشد خودکار به `/dashboard` هدایت می‌شود                                                      |
-| `src/app/globals.css`                        | استایل پایهٔ Tailwind                                                                                                            |
-| `src/app/auth/login/page.tsx`                | فرم لاگین + دکمه‌های حساب دمو (`DEMO_ACCOUNTS`) — این آرایه در جلسهٔ قبل با ایمیل‌های واقعی دیتابیس هماهنگ شد                    |
-| `src/app/auth/register/page.tsx`             | فرم ثبت‌نام استاد/دانشجو                                                                                                         |
-| `src/app/dashboard/layout.tsx`               | Layout مشترک بخش داشبورد: `Sidebar` + `TopBar` + بررسی احراز هویت                                                                |
-| `src/app/dashboard/page.tsx`                 | داشبورد شخصی استاد/دانشجو؛ اگر نقش کاربر `admin` باشد بلافاصله (client-side) به `/dashboard/admin` ری‌دایرکت و چیزی رندر نمی‌کند |
-| `src/app/dashboard/applications/page.tsx`    | لیست درخواست‌های ارسالی دانشجو + دعوت‌های دریافتی و وضعیت آن‌ها |
-| `src/app/dashboard/messages/page.tsx`        | صفحهٔ پیام‌ها؛ از `ChatPanel` برای نمایش گفتگوی پروژه و polling استفاده می‌کند |
-| `src/app/dashboard/my-projects/page.tsx`     | لیست پروژه‌های ساخته‌شده توسط کاربر، برای هر دو نقش |
-| `src/app/dashboard/my-projects/new/page.tsx` | فرم ساخت پروژهٔ جدید توسط استاد یا دانشجو |
-| `src/app/dashboard/profile/page.tsx`         | ویرایش پروفایل (بیوگرافی، علایق، زبان‌های برنامه‌نویسی و ...)                                                                    |
-| `src/app/dashboard/projects/page.tsx`        | کاتالوگ پروژه‌های قابل‌مشاهده برای دانشجو و ورود به جزئیات |
-| `src/app/dashboard/projects/[id]/page.tsx`   | جزئیات پروژه، اعضا، درخواست/دعوت، visibility، مدیریت اعضا و فایل‌های پروژه |
+### `src/app/api/auth/register/route.ts`
 
-### 🆕 صفحات پنل ادمین
+مسئولیت:
 
-| فایل                                           | مسئولیت واقعی                                                                                               |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/app/dashboard/admin/page.tsx`             | صفحهٔ اصلی پنل ادمین: کارت‌های آمار، لیست دپارتمان‌های مدیریت‌شده، لیست همهٔ پروژه‌ها، و بخش تأیید/رد استاد |
-| `src/app/dashboard/admin/departments/page.tsx` | رابط کاربری انتخاب/ذخیرهٔ دپارتمان‌های تحت مدیریت این ادمین                                                 |
-| `src/app/dashboard/admin/messages/page.tsx`    | رابط چت مستقیم ادمین با اساتید هم‌دپارتمان                                                                  |
+- ثبت دانشجو/استاد
+- validate کردن داده‌های ثبت‌نام
+- hash کردن password
+- ساخت استاد با `professorStatus=pending`
+- ساخت دانشجو با وضعیت approved
+- rate limit ثبت‌نام
+- جلوگیری از email تکراری
 
-> **حذف‌شده:** مسیر قدیمی `src/app/admin/` (بدون `dashboard/`) که یک نسخهٔ تکراری و نیمه‌کاره از همین پنل بود و هیچ‌جای دیگری از برنامه به آن لینک نمی‌داد؛ در جلسهٔ رفع‌اشکال قبلی به‌طور کامل حذف شد چون اطلاعات منحصربه‌فردی نداشت.
+### `src/app/api/auth/logout/route.ts`
 
-## 6. Components
+حذف/منقضی کردن cookie احراز هویت.
 
-### Layout
+### `src/app/api/auth/me/route.ts`
 
-| فایل                                | مسئولیت واقعی                                                                                                                                         |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/components/layout/Sidebar.tsx` | منوی کناری؛ آیتم‌های نویگیشن بر اساس نقش کاربر فیلتر می‌شوند (`roles` روی هر `NavItem`) — ادمین فقط «Admin Panel» را می‌بیند (اصلاح‌شده در جلسهٔ قبل) |
-| `src/components/layout/TopBar.tsx`  | نوار بالای صفحات داشبورد؛ عنوان/زیرعنوان صفحه + دکمهٔ باز کردن منو در موبایل                                                                          |
+- GET: اطلاعات safe کاربر فعلی
+- PATCH: ویرایش پروفایل کاربر فعلی
+- عدم expose کردن password
 
-### Projects
+### `src/app/api/auth/password/route.ts`
 
-| فایل                                            | مسئولیت واقعی                                           |
-| ----------------------------------------------- | ------------------------------------------------------- |
-| `src/components/projects/ApplicationsPanel.tsx` | نمایش و تأیید/رد درخواست‌های عضویت یک پروژه (سمت استاد) |
-| `src/components/projects/ChatPanel.tsx`         | رابط چت گروهی یک پروژه با polling/رفرش پیام‌ها          |
-| `src/components/projects/ProjectCard.tsx`       | کارت خلاصهٔ پروژه، شامل creator/type/visibility و وضعیت |
-| `src/components/projects/ProjectFiles.tsx`      | رابط فهرست/آپلود فایل‌های project |
+- بررسی password فعلی
+- validate password جدید
+- rate limit
+- hash و ذخیره password جدید
 
-### Providers
+نکته: JWTهای قبلی در معماری stateless فعلی به‌صورت خودکار revoke نمی‌شوند.
 
-| فایل                                         | مسئولیت واقعی                                                 |
-| -------------------------------------------- | ------------------------------------------------------------- |
-| `src/components/providers/QueryProvider.tsx` | فراهم‌کنندهٔ `QueryClient` برای TanStack React Query در کل اپ |
+## 4. Project API
 
-### UI (کامپوننت‌های عمومی و بدون منطق دامنه)
+### `src/app/api/projects/route.ts`
 
-| فایل                               | مسئولیت واقعی                                   |
-| ---------------------------------- | ----------------------------------------------- |
-| `src/components/ui/Avatar.tsx`     | نمایش آواتار (تصویر یا حروف اول نام)            |
-| `src/components/ui/Badge.tsx`      | برچسب رنگی برای وضعیت‌ها (pending/approved/...) |
-| `src/components/ui/Button.tsx`     | دکمهٔ استاندارد با واریانت‌های رنگی             |
-| `src/components/ui/Card.tsx`       | کانتینر کارت با `CardBody`                      |
-| `src/components/ui/EmptyState.tsx` | نمایش حالت «داده‌ای وجود ندارد»                 |
-| `src/components/ui/ErrorState.tsx` | نمایش خطا با دکمهٔ تلاش مجدد                    |
-| `src/components/ui/Input.tsx`      | فیلد ورودی استاندارد (و `Textarea`)             |
-| `src/components/ui/Modal.tsx`      | پنجرهٔ Modal عمومی                              |
-| `src/components/ui/Skeleton.tsx`   | Loading skeleton برای کارت‌ها و آمار            |
+- GET: فهرست پروژه‌ها با scope بر اساس نقش، visibility و فیلترهای query
+- POST: ایجاد پروژه
+- ثبت creator در `project_members`
+- ایجاد invite token برای private project در صورت نیاز
 
-## 7. Contexts
+### `src/app/api/projects/[id]/route.ts`
 
-| فایل                              | مسئولیت واقعی                                                                             |
-| --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `src/contexts/AuthContext.tsx`    | وضعیت کاربر لاگین‌شده (`user`, `loading`) + توابع `login`/`register`/`logout` سمت کلاینت  |
-| `src/contexts/SidebarContext.tsx` | باز/بسته بودن منوی کناری در حالت موبایل؛ با تغییر مسیر (`usePathname`) خودکار بسته می‌شود |
+- GET: جزئیات project
+- PATCH: ویرایش توسط owner
+- DELETE: حذف توسط owner
 
-## 8. Database
+مرجع ownership:
 
-| فایل               | مسئولیت واقعی                                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/db/index.ts`  | ساخت `Pool` اتصال Postgres (Neon) + نمونهٔ `db` از Drizzle؛ Pool را در `globalThis` کش می‌کند تا در حالت dev با هر hot-reload، Connection Pool جدید ساخته نشود      |
-| `src/db/schema.ts` | تعریف جداول `users`, `projects`, `applications`, `projectMembers`, `chatMessages`, `projectFiles`, `adminDepartments`, `directMessages` و تمام enumها |
-| `src/db/seed.ts`   | اسکریپت مستقیم seed (`npx tsx src/db/seed.ts`)؛ در جلسهٔ قبل نام/ایمیل‌های دمو با دیتابیس واقعی و با `api/seed/route.ts` هماهنگ شد                                  |
+```text
+projects.creatorId
+projects.creatorRole
+```
 
-## 9. Library / Utilities
+### `src/app/api/projects/[id]/members/[userId]/route.ts`
 
-| فایل                        | مسئولیت واقعی                                                                                                                                            |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/auditLog.ts`       | ثبت رویدادهای حساس (مثل تأیید/رد درخواست) برای پیگیری بعدی                                                                                               |
-| `src/lib/auth.ts`           | `hashPassword`/`comparePassword` (bcrypt)، صدور/خواندن JWT از کوکی `auth_token`، تابع `getAuthUser()` که در همهٔ API routeها و صفحات سرور استفاده می‌شود |
-| `src/lib/rateLimit.ts`      | Rate-limit ساده در حافظه برای login/register/password-change/chat                                                                             |
-| `src/lib/utils.ts`          | توابع کمکی عمومی: `cn` (ترکیب کلاس Tailwind)، `formatDate`، `formatTimeAgo`، `statusColor`/`statusLabel`                                                 |
-| `src/lib/validation.ts`     | اعتبارسنجی auth/profile/project، username، visibility/type، فایل و محدودیت‌های ورودی |
-| `src/lib/permissions.ts` 🆕 | بررسی نقش ادمین و پرتاب خطای `UNAUTHORIZED`/`FORBIDDEN` |
-| `src/lib/projectAccess.ts` | محاسبهٔ ownership/membership پروژه برای endpointهای پروژه |
+حذف member توسط owner؛ owner خودش نباید حذف شود.
 
-> ⚠️ فایل `src/lib/constants.ts` که در سند قبلی حدس زده شده بود، در پروژهٔ واقعی **وجود ندارد**.
+### `src/app/api/projects/[id]/invite/route.ts`
 
-## نمای کلی معماری (به‌روزشده)
+دعوت owner به student از طریق username و ساخت application با source=`owner_invite`.
+
+## 5. Applications / Invitations
+
+### `src/app/api/applications/route.ts`
+
+لیست applicationهای ارسال‌شده توسط دانشجوی فعلی.
+
+### `src/app/api/projects/[id]/applications/route.ts`
+
+لیست applicationهای یک project برای owner.
+
+### `src/app/projects/[id]/applications/[appId]/route.ts`
+
+> مسیر واقعی در پروژه:
+>
+> `src/app/api/projects/[id]/applications/[appId]/route.ts`
+
+مسئول approve/reject application توسط owner یا cancel کردن application توسط student صاحب آن.
+
+در approve، کنترل ظرفیت باید به‌صورت transaction/lock انجام شود.
+
+### `src/app/api/invitations/route.ts`
+
+لیست invitationهای دریافتی student.
+
+### `src/app/api/invitations/[id]/route.ts`
+
+قبول/رد invitation توسط student صاحب invitation.
+
+### `src/app/api/invites/[token]/route.ts`
+
+ورود از private invite token و ایجاد membership پس از بررسی token، نقش، membership و ظرفیت.
+
+## 6. Project Chat
+
+### `src/app/api/projects/[id]/messages/route.ts`
+
+- GET: پیام‌های پروژه برای member/owner
+- POST: ایجاد پیام
+- نوع پیام: `text` یا `progress_update`
+- rate limit پیام
+
+### `src/app/api/projects/[id]/messages/[messageId]/route.ts`
+
+- PATCH: ویرایش پیام توسط صاحب آن
+- DELETE: حذف پیام توسط صاحب آن
+- ثبت audit برای عملیات حساس
+
+## 7. Project Files
+
+### `src/app/api/projects/[id]/files/route.ts`
+
+- GET: فهرست فایل‌های project برای member/owner
+- POST: multipart upload
+- بررسی context
+- بررسی دسترسی
+- بررسی size/type
+- ارسال فایل به Vercel Blob
+- ذخیره metadata در `project_files`
+
+حداکثر فایل:
+
+```text
+10MB
+```
+
+contextهای معتبر:
+
+```text
+chat
+document
+deliverable
+```
+
+### `src/app/api/projects/[id]/files/[fileId]/route.ts`
+
+- DELETE
+- فقط uploader یا owner
+- حذف object از Blob
+- حذف metadata از DB
+- ثبت audit
+
+نکته امنیتی: Blob در کد فعلی با public access استفاده می‌شود؛ بنابراین URL فایل از authorization API مستقل است.
+
+## 8. Dashboard
+
+### `src/app/api/dashboard/stats/route.ts`
+
+آمار dashboard را بر اساس role محاسبه می‌کند:
+
+- professor: پروژه‌ها، applicationها و اعضا
+- student: applicationها و projectهای joined
+
+## 9. Admin API
+
+### `src/app/api/admin/stats/route.ts`
+
+آمار admin با department scope برای user counts و project metrics طبق قرارداد فعلی.
+
+### `src/app/api/admin/departments/route.ts`
+
+خواندن و تغییر department scope ادمین.
+
+### `src/app/api/admin/professors/route.ts`
+
+- GET: استادان در scope ادمین
+- PATCH: تغییر `professorStatus`
+- POST: در کد فعلی disabled/403
+
+### `src/app/api/admin/projects/route.ts`
+
+فهرست projectهای admin برای supervision فعلی؛ این route در معماری فعلی university-wide است و نباید با faculty overview یکی فرض شود.
+
+### `src/app/api/admin/messages/route.ts`
+
+پیام مستقیم admin ↔ professor با بررسی role و department scope.
+
+### `src/app/api/admin/faculty-overview/route.ts`
+
+**کنترل مرکز پروژه‌های دانشکده / Faculty Project Control Center — V2**
+
+قواعد مشاهده در کد فعلی:
+
+1. فقط admin احراز هویت‌شده.
+2. فقط پروژه‌های `public`.
+3. فقط پروژه‌هایی که `creatorRole = professor` دارند.
+4. پروژه باید حداقل یک عضو از یکی از departmentهای اختصاص‌یافته به admin داشته باشد.
+5. پروژه‌های student-created حتی اگر public باشند در این endpoint نمایش داده نمی‌شوند.
+6. پروژه‌های private در این endpoint نمایش داده نمی‌شوند.
+7. cross-faculty project می‌تواند برای adminهای departmentهای مشارکت‌کننده نمایش داده شود.
+8. `admin/projects` تحت تأثیر این فیلتر قرار نمی‌گیرد.
+
+خروجی شامل:
+
+```text
+departments
+summary
+attention
+projects
+```
+
+### منطق `attention` در V2
+
+در نسخهٔ فعلی فقط یک reason معتبر است:
+
+```text
+مهلت انجام گذشته است
+```
+
+پروژهٔ completed حتی با deadline گذشته، overdue محسوب نمی‌شود.
+
+`capacityAvailable` فقط اطلاعاتی است و باعث اضافه شدن project به `attention` نمی‌شود.
+
+`lastActivityAt` از جدیدترین timestamp بین:
+
+- `projects.updatedAt`
+- آخرین `chat_messages.created_at`
+
+به‌دست می‌آید؛ محتوای پیام برای این محاسبه خوانده نمی‌شود.
+
+## 10. Health / Seed
+
+### `src/app/api/health/route.ts`
+
+یک DB check ساده (`select 1`) برای health-check.
+
+### `src/app/api/seed/route.ts`
+
+endpoint حساس seed با `SEED_SECRET`.
+
+قابلیت‌های آن می‌تواند شامل:
+
+- seed
+- clear
+- force
+- list
+- check-schema
+
+باشد.
+
+این endpoint باید در production به‌عنوان عملیات حساس در نظر گرفته شود.
+
+## 11. Database
+
+### `src/db/index.ts`
+
+- ساخت اتصال PostgreSQL
+- ساخت Drizzle DB
+- cache کردن Pool در `globalThis` برای جلوگیری از ایجاد poolهای تکراری در dev hot reload
+
+### `src/db/schema.ts`
+
+تعریف:
+
+```text
+users
+projects
+applications
+projectMembers
+chatMessages
+projectFiles
+adminDepartments
+directMessages
+```
+
+همچنین enumها و relationهای مربوط به این مدل‌ها.
+
+### `src/db/seed.ts`
+
+seed مستقیم دیتابیس از طریق script.
+
+## 12. Security / Business Utilities
+
+### `src/lib/auth.ts`
+
+- bcrypt hash/compare
+- JWT sign/verify
+- `getAuthUser()`
+- خواندن auth token از HttpOnly cookie
+
+### `src/lib/permissions.ts`
+
+- بررسی نقش admin
+- تولید خطاهای unauthorized/forbidden برای policyهای admin
+
+### `src/lib/projectAccess.ts`
+
+محاسبه:
+
+```text
+project
+isOwner
+isMember
+```
+
+و فراهم کردن پایهٔ authorization برای endpointهای project-scoped.
+
+### `src/lib/validation.ts`
+
+اعتبارسنجی:
+
+- auth
+- profile
+- username
+- department
+- project
+- project type
+- visibility
+- interests
+- programming languages
+- file context/type/size
+
+### `src/lib/rateLimit.ts`
+
+Rate limit in-memory برای:
+
+- login
+- register
+- password change
+- project chat
+
+نکته: این limiter در deployment توزیع‌شده global نیست.
+
+### `src/lib/auditLog.ts`
+
+ثبت eventهای حساس به شکل structured log.
+
+### `src/lib/messages.fa.ts`
+
+متن‌ها/پیام‌های فارسی مرتبط با UI/API.
+
+### `src/lib/utils.ts`
+
+utilityهای عمومی UI/data مانند class merging و formatهای تاریخ/وضعیت.
+
+## 13. Frontend
+
+### `src/contexts/AuthContext.tsx`
+
+state و عملیات auth در client:
+
+```text
+user
+loading
+login
+register
+logout
+```
+
+### `src/contexts/SidebarContext.tsx`
+
+کنترل باز/بسته بودن sidebar و هماهنگی با مسیر.
+
+### `src/components/layout/*`
+
+ساختار layout داشبورد:
+
+- Sidebar
+- TopBar
+
+### `src/components/projects/*`
+
+UI پروژه:
+
+- ApplicationsPanel
+- ChatPanel
+- ProjectCard
+- ProjectFiles
+
+### `src/components/providers/QueryProvider.tsx`
+
+ارائهٔ TanStack React Query.
+
+### `src/components/ui/*`
+
+کامپوننت‌های عمومی UI.
+
+## 14. صفحات Admin
+
+```text
+src/app/dashboard/admin/page.tsx
+src/app/dashboard/admin/departments/page.tsx
+src/app/dashboard/admin/messages/page.tsx
+```
+
+- dashboard admin
+- مدیریت department scope
+- پیام مستقیم با professors
+
+## 15. نمای معماری فایل‌ها
 
 ```text
 ResearchHub
 │
-├── Pages / UI
-│   └── src/app/                    (شامل dashboard و پنل admin)
-├── Reusable Components
-│   └── src/components/
-├── Frontend State
-│   └── src/contexts/
-├── API
-│   └── src/app/api/                (auth، projects، applications، invitations، files، chat، admin، seed)
-├── Business / Security Utilities
-│   └── src/lib/                    (auth، validation، rateLimit، permissions، projectAccess، auditLog)
-├── Database
-│   ├── src/db/
-│   ├── drizzle/                    (migration اولیه و metadata)
-│   └── migrations/                 (migrationهای بعدی)
-└── Configuration / Deployment
-    ├── package.json
-    ├── tsconfig.json
-    ├── next.config.ts
-    ├── drizzle.config.ts
-    └── vercel.json
+├── src/app/
+│   ├── pages
+│   └── api/
+│       ├── auth
+│       ├── projects
+│       ├── applications
+│       ├── invitations
+│       ├── invites
+│       ├── dashboard
+│       ├── admin
+│       │   ├── stats
+│       │   ├── departments
+│       │   ├── professors
+│       │   ├── projects
+│       │   ├── messages
+│       │   └── faculty-overview
+│       ├── health
+│       └── seed
+│
+├── src/components/
+├── src/contexts/
+├── src/lib/
+│   ├── auth
+│   ├── permissions
+│   ├── projectAccess
+│   ├── validation
+│   ├── rateLimit
+│   └── auditLog
+│
+├── src/db/
+│   ├── index
+│   ├── schema
+│   └── seed
+│
+└── src/middleware.ts
 ```
 
-## وضعیت اعتبار سند
+## 16. مواردی که نباید در مسئولیت فایل‌ها با هم قاطی شوند
 
-این نسخه، بر خلاف نسخهٔ قبلی، بر اساس **خواندن مستقیم محتوای کد و تطبیق مسیرهای واقعی پروژه** نوشته شده — نه حدس از روی اسم فایل. جایی که طی رفع‌اشکال‌های قبلی، توضیحات فایل تغییر کرده (مثلاً حذف `src/app/admin/`، هماهنگ‌سازی داده‌های seed، محدودسازی نویگیشن ادمین)، در همین سند علامت‌گذاری شده است.
+### `/api/admin/projects` ≠ `/api/admin/faculty-overview`
+
+اولی برای لیست پروژه‌های admin با قرارداد فعلی خود است؛ دومی یک کنترل‌سنتر scoped برای پروژه‌های public و professor-created است.
+
+### `projectMembers` ≠ `applications`
+
+application درخواست/دعوت است؛ membership عضویت تأییدشده است.
+
+### API authorization ≠ Blob authorization
+
+API می‌تواند دسترسی metadata را محدود کند، اما فایل Blob فعلی public است.
+
+### `creatorId` ≠ `professorId`
+
+مالکیت فعلی project بر اساس `creatorId/creatorRole` است؛ `professorId` backward compatibility است.
+
+## 17. وضعیت سند
+
+این نسخه برای هماهنگ‌سازی دو سند اصلی مستندسازی با ساختار فعلی ایجاد شده است. هر تغییر جدید در API، مدل داده، مسیر admin یا ساختار فایل باید همزمان در این دو سند بررسی شود تا manifest و مسئولیت فایل‌ها دوباره از هم فاصله نگیرند.

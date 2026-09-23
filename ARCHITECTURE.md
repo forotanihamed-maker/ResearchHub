@@ -1,120 +1,588 @@
-# ResearchHub — مستند معماری
+# ResearchHub — مستند معماری (نسخه بازبینی‌شده)
 
-> این سند برای توسعه‌دهنده‌ای نوشته شده که تازه به این پروژه ملحق می‌شود و باید در کمترین زمان بفهمد سیستم چطور کار می‌کند.
+> تاریخ بازبینی: 2026-09-24
+>
+> این سند بر اساس ساختار واقعی کد ارسالی و schema فعلی نوشته شده است. تمرکز آن روی معماری اجرایی، مرزهای امنیتی، داده و جریان‌های اصلی است.
 
-## ۱. دید کلی یک‌خطی
+## 1. نمای کلی
 
-پلتفرمی که استاد یا دانشجو پروژه ایجاد می‌کند، پروژه می‌تواند عمومی یا خصوصی باشد، اعضا از طریق درخواست یا دعوت به پروژه می‌پیوندند، و تیم تشکیل‌شده در چت گروهی و فضای فایل پروژه کار می‌کند. یک لایه‌ی ادمین دپارتمانی هم روی این سیستم نظارت می‌کند.
+ResearchHub یک پلتفرم همکاری پژوهشی/آموزشی با سه نقش اصلی است:
 
-## ۲. استک فنی
+- `student`
+- `professor`
+- `admin`
 
-| لایه | تکنولوژی | نسخه |
-|---|---|---|
-| Framework | Next.js (App Router) | 16.2.6 |
-| UI | React | 19.2.6 |
-| استایل | Tailwind CSS | 4.1.17 |
-| ORM | Drizzle ORM | 0.45.2 |
-| دیتابیس | PostgreSQL (میزبانی: Neon) | — |
-| احراز هویت | JWT (jsonwebtoken) + bcryptjs | — |
-| مدیریت state سرور | TanStack React Query | 5.101.3 |
-| دیپلوی | Vercel | — |
+جریان اصلی:
 
-نکته‌ی مهم برای دیپلوی روی Vercel: توابع API به‌صورت **Serverless** اجرا می‌شوند — یعنی هیچ حافظه‌ی درون‌فرایندی بین درخواست‌ها تضمین‌شده نیست. این نکته مستقیماً روی محدودیت rate-limiting توضیح‌داده‌شده در بخش ۷ اثر می‌گذارد.
-
-## ۳. ساختار پوشه‌ها
-
-```
-src/
-├── middleware.ts              # فقط روی /api/* اجرا می‌شود
-├── app/
-│   ├── layout.tsx             # Layout ریشه (فونت، QueryProvider، AuthProvider)
-│   ├── page.tsx                # لندینگ — اگر لاگین باشی به /dashboard می‌رود
-│   ├── auth/{login,register}/  # صفحات عمومی احراز هویت
-│   ├── dashboard/
-│   │   ├── layout.tsx          # Sidebar + TopBar + گارد احراز هویت
-│   │   ├── page.tsx            # داشبورد استاد/دانشجو (ادمین را ری‌دایرکت می‌کند)
-│   │   ├── projects/           # کاتالوگ پروژه (دانشجو) / جزئیات پروژه
-│   │   ├── my-projects/        # پروژه‌های خود استاد
-│   │   ├── applications/       # درخواست‌های ارسالی دانشجو
-│   │   ├── messages/           # چت تیمی
-│   │   ├── profile/            # ویرایش پروفایل
-│   │   └── admin/              # پنل ادمین (overview, departments, messages)
-│   └── api/                    # همه‌ی endpointها — شامل auth، projects، applications، invitations، files، chat و admin
-├── components/
-│   ├── layout/                 # Sidebar, TopBar
-│   ├── projects/                # ApplicationsPanel, ChatPanel, ProjectCard
-│   ├── ui/                      # کامپوننت‌های عمومی بدون منطق دامنه
-│   └── providers/QueryProvider.tsx
-├── contexts/                   # AuthContext, SidebarContext
-├── db/                          # schema.ts, index.ts, seed.ts
-├── lib/                         # auth, validation, rateLimit, permissions, auditLog, utils
-├── drizzle/                     # migration اولیه (SQL تولیدشده توسط drizzle-kit)
-└── migrations/                  # migrationهای دستی بعدی (مثل پنل ادمین)
-```
-
-## ۴. مدل داده (خلاصه)
-
-```
-users ──┬── projects (creatorId, creatorRole) ──┬── applications (projectId, studentId → users)
-        │                                      ├── projectMembers (projectId, userId → users)
-        │                                      ├── chatMessages (projectId, senderId → users)
-        │                                      └── projectFiles (projectId, uploaderId → users)
-        ├── adminDepartments (adminId → users)   [یک ادمین ↔ چند دپارتمان]
-        └── directMessages (senderId, recipientId → users)  [ادمین ↔ استاد]
-```
-
-نکات مهم طراحی که باید بدانید:
-
-- **`department` یک enum ثابت پستگرس با ۶ مقدار هاردکد است**، نه یک جدول. یعنی برای اضافه/تغییر دپارتمان‌ها باید migration جدید نوشت. برای گسترش به دانشکده‌ها/دانشگاه‌های مختلف، این محدودیت اصلی معماری فعلی است (به بخش ۸ نگاه کنید).
-- سازنده (استاد یا دانشجو) هنگام ساخت پروژه **به‌صورت خودکار عضو `projectMembers` همان پروژه هم می‌شود** — این برای این است که هم بتواند در چت شرکت کند و هم چک‌های مالکیت یکسان کار کنند. به همین دلیل، هر جا که "تعداد اعضا" شمرده می‌شود (برای `maxMembers`، برای آمار داشبورد)، ردیف خود استاد **عمداً از شمارش حذف می‌شود** — این یک تصمیم طراحی است، نه باگ، ولی برای هر توسعه‌دهنده‌ی جدید گیج‌کننده است اگر از قبل نداند.
-- `professorStatus` (`pending` / `approved` / `rejected`) فقط برای نقش `professor` معنا دارد؛ دانشجوها همیشه `approved` ساخته می‌شوند. استاد `pending` یا `rejected` اصلاً نمی‌تواند لاگین کند.
-
-## ۵. جریان احراز هویت
-
-1. لاگین/ثبت‌نام موفق دانشجو → یک JWT در کوکی HttpOnly به‌نام `auth_token` ست می‌شود (`maxAge`: ۷ روز، `secure` فقط در production). ثبت‌نام استاد فقط حساب `pending` می‌سازد و تا تأیید ادمین کوکی ورود صادر نمی‌کند.
-2. هر صفحه‌ی سرور یا API route با `getAuthUser()` (در `lib/auth.ts`) این کوکی را می‌خواند و decode می‌کند.
-3. **هیچ session سمت سرور یا جدول refresh-token‌ای وجود ندارد** — همه‌چیز stateless و مبتنی بر خود JWT است. یعنی revoke کردن یک توکن قبل از انقضایش (مثلاً اگر یک ادمین بخواهد فوری یک نشست را باطل کند) از نظر فعلی سیستم ممکن نیست.
-4. میان‌افزار (`middleware.ts`) **فقط روی `/api/*`** matcher دارد؛ محافظت از خود صفحات (`/dashboard/*`, `/dashboard/admin/*`) در بدنه‌ی همان `page.tsx`ها با فراخوانی مستقیم `getAuthUser()` انجام می‌شود، نه در میان‌افزار.
-
-## ۶. جریان اصلی کسب‌وکار (Project Lifecycle)
-
-```
-استاد پروژه می‌سازد (status: open)
+```text
+Browser
+  │
+  ▼
+Next.js App Router
+  ├── Pages / UI
+  ├── API Routes (/api/*)
+  └── Middleware
         │
-دانشجو درخواست عضویت می‌دهد (application: pending)
-        │
-        ├─→ استاد تأیید می‌کند ──→ application: approved
-        │                          └─→ projectMembers رکورد جدید
-        │                          └─→ اگر اولین تأیید بود: project.status → in_progress
-        │
-        └─→ استاد رد می‌کند ──→ application: rejected
+        ├── Body-size guard
+        └── Origin/CSRF guard
+              │
+              ▼
+         Route Handler
+              │
+        ┌─────┴─────┐
+        ▼           ▼
+   Auth/Policy   Drizzle ORM
+                    │
+                    ▼
+                PostgreSQL
+                    │
+        ┌───────────┴───────────┐
+        ▼                       ▼
+   Application data        Vercel Blob
+                           (project files)
 ```
 
-تأیید عضویت داخل یک **تراکنش دیتابیسی با row lock (`FOR UPDATE`)** انجام می‌شود (`applications/[appId]/route.ts`) تا دو تأیید هم‌زمان روی یک پروژه، ظرفیت `maxMembers` را رد نکنند — این یکی از دقیق‌ترین بخش‌های کد از نظر مدیریت همزمانی است.
+## 2. لایه‌های اصلی
 
-## ۷. امنیت — چیزی که هست و چیزی که نیست
+### 2.1 Frontend
 
-| مکانیزم | وضعیت |
-|---|---|
-| هش پسورد | bcryptjs، پیاده‌سازی‌شده و درست |
-| JWT در کوکی HttpOnly | بله (نه در localStorage) |
-| Rate limiting لاگین/ثبت‌نام/تغییر رمز/چت | بله، ولی **درون‌حافظه‌ای** (`lib/rateLimit.ts`) — روی Vercel serverless، این محافظت فقط در محدوده‌ی یک instance گرم تضمین می‌شود، نه سراسری. برای ترافیک واقعی باید با Redis/Store مشترک جایگزین شود. |
-| محافظت CSRF | بله — `middleware.ts` روی همه‌ی متدهای تغییردهنده (`POST`/`PUT`/`PATCH`/`DELETE`) هدر `Origin` (با fallback به `Referer`) را با آدرس واقعی سرور مقایسه می‌کند و در صورت عدم تطابق `403` می‌دهد |
-| محدودیت حجم درخواست | بله — همان `middleware.ts` با `Content-Length` درخواست‌های بزرگ‌تر از ۱۰۰KB را با `413` رد می‌کند (محدودیت شناخته‌شده: کلاینت با `chunked transfer-encoding` این چک را دور می‌زند) |
-| Audit log | بله (`lib/auditLog.ts`) — رویدادهای حساس (لاگین ناموفق، تأیید/رد درخواست، تغییر وضعیت استاد) ثبت می‌شوند |
-| RBAC (نقش‌محور) | بله، هم در `middleware`/`getAuthUser` و هم به‌صورت مضاعف در خود هر query (نه فقط مخفی‌کردن UI) |
-| محدودسازی دپارتمانی ادمین | بله، از طریق `lib/permissions.ts` و جدول `admin_departments` |
-| تأیید ایمیل هنگام ثبت‌نام | ❌ وجود ندارد — هرکسی با هر ایمیلی می‌تواند ثبت‌نام کند |
-| Forgot / Reset password | ❌ وجود ندارد |
-| تست خودکار امنیتی | ❌ وجود ندارد — سناریوهای IDOR/دسترسی فقط با بررسی دستی تأیید شده‌اند |
-| Refresh token / ابطال فوری نشست | ❌ وجود ندارد |
+بر پایه Next.js App Router و React.
 
-## ۸. بزرگ‌ترین محدودیت معماری فعلی — تک‌مستأجری بودن (Single-tenant)
+مسئولیت‌ها:
 
-کل schema فرض می‌کند **یک** نهاد آموزشی وجود دارد (یک enum ثابت دپارتمان، بدون مفهوم «دانشگاه» یا «دانشکده» به‌عنوان یک موجودیت مستقل در دیتابیس). اگر قرار است این سامانه به چند دانشکده/دانشگاه مختلف فروخته شود، مهم‌ترین تغییر معماری پیش‌رو این است:
+- صفحات احراز هویت
+- dashboard
+- project UI
+- applications
+- chat
+- profile
+- admin UI
 
-- اضافه‌کردن یک جدول `organizations` (یا `institutions`)
-- تبدیل `department` از enum ثابت به یک جدول `departments` با `organizationId`
-- افزودن `organizationId` به `users` و فیلتر کردن تمام query‌ها بر همین اساس
+Frontend مرجع نهایی authorization نیست؛ routeهای API باید دوباره authorization را enforce کنند.
 
-این تغییر، بزرگ‌ترین ریفکتور ساختاری‌ای است که پیش از فروش به بیش از یک نهاد باید انجام شود.
+### 2.2 API Layer
+
+مسیرها زیر:
+
+```text
+src/app/api/
+```
+
+تقسیم دامنه:
+
+```text
+auth/
+projects/
+applications/
+invitations/
+invites/
+dashboard/
+admin/
+health/
+seed/
+```
+
+### 2.3 Middleware
+
+فایل:
+
+```text
+src/middleware.ts
+```
+
+Matcher:
+
+```text
+/api/:path*
+```
+
+Middleware برای متدهای:
+
+```text
+POST PUT PATCH DELETE
+```
+
+دو کار انجام می‌دهد:
+
+1. محدودیت اندازه body بر اساس `Content-Length`
+2. بررسی Origin/Referer برای دفاع CSRF
+
+محدودیت اندازه:
+
+- JSON و سایر bodyهای غیر-multipart: 100KB
+- multipart: 11MB
+
+دلیل سقف 11MB برای multipart این است که فایل route سقف 10MB دارد و multipart boundary/metadata نیز باید جا داشته باشد.
+
+### 2.4 Auth Layer
+
+فایل:
+
+```text
+src/lib/auth.ts
+```
+
+مکانیزم:
+
+- bcryptjs برای password
+- JWT برای session
+- HttpOnly cookie به نام `auth_token`
+- `getAuthUser()` برای خواندن و verify کردن JWT
+
+JWT payload:
+
+```text
+userId
+email
+role
+name
+```
+
+هیچ server-side session table یا refresh-token table در schema فعلی وجود ندارد.
+
+### 2.5 Authorization Layer
+
+فایل:
+
+```text
+src/lib/permissions.ts
+src/lib/projectAccess.ts
+```
+
+دو سطح اصلی:
+
+- role-based authorization
+- resource ownership / membership
+
+`getProjectAccess()` اطلاعات زیر را محاسبه می‌کند:
+
+```text
+project
+isOwner
+isMember
+```
+
+این helper در فایل‌ها و سایر endpointهای project-scoped استفاده می‌شود.
+
+### 2.6 Validation
+
+فایل:
+
+```text
+src/lib/validation.ts
+```
+
+مسئول:
+
+- ID parsing
+- name/email/password
+- department
+- username
+- project type/visibility
+- interests
+- programming languages
+- file context/type/size
+
+File limits:
+
+```text
+MAX_FILE_SIZE_BYTES = 10MB
+```
+
+Allowed extensions:
+
+```text
+pdf
+doc
+docx
+zip
+png
+jpg
+jpeg
+```
+
+### 2.7 Rate Limiting
+
+فایل:
+
+```text
+src/lib/rateLimit.ts
+```
+
+پیاده‌سازی فعلی in-memory است.
+
+این نکته در Vercel بسیار مهم است:
+
+```text
+Instance A ≠ Instance B
+```
+
+بنابراین rate limit تضمین‌شده و global نیست.
+
+موارد فعلی:
+
+- login: IP + email
+- register: IP
+- password change: user
+- project chat: user + project
+
+برای scale بالاتر باید shared store در نظر گرفته شود.
+
+---
+
+# 3. مدل داده
+
+Schema اصلی:
+
+```text
+users
+admin_departments
+projects
+applications
+project_members
+chat_messages
+project_files
+direct_messages
+```
+
+## users
+
+هویت و پروفایل:
+
+```text
+id
+name
+email
+password
+role
+professorStatus
+avatar
+bio
+department
+university
+interests[]
+programmingLanguages[]
+username
+createdAt
+updatedAt
+```
+
+`email` و `username` unique هستند.
+
+## admin_departments
+
+scope ادمین را تعیین می‌کند:
+
+```text
+adminId
+department
+```
+
+یک admin می‌تواند چند department داشته باشد.
+
+## projects
+
+مرجع اصلی مالکیت:
+
+```text
+creatorId
+creatorRole
+```
+
+`professorId` هنوز در schema وجود دارد، ولی طبق comment کد برای backward compatibility است و source of truth جدید نیست.
+
+فیلدهای مهم:
+
+```text
+status
+type
+visibility
+inviteToken
+maxMembers
+deadline
+```
+
+## applications
+
+هم درخواست دانشجو و هم دعوت owner را مدل می‌کند:
+
+```text
+source =
+  student_application
+  owner_invite
+```
+
+## project_members
+
+اعضای تأییدشده.
+
+کلید مرکب:
+
+```text
+(projectId, userId)
+```
+
+سازنده پروژه نیز هنگام ساخت پروژه در این جدول ثبت می‌شود.
+
+## chat_messages
+
+پیام‌های پروژه.
+
+## project_files
+
+metadata فایل:
+
+```text
+projectId
+uploaderId
+fileName
+fileUrl
+fileSize
+context
+chatMessageId
+```
+
+bytes فایل در DB نیست؛ در Vercel Blob قرار می‌گیرد.
+
+## direct_messages
+
+پیام مستقیم admin ↔ professor.
+
+این سیستم از project chat جداست.
+
+---
+
+# 4. Project lifecycle
+
+```text
+Create project
+     │
+     ▼
+   open
+     │
+     ├── student application ──► pending
+     │                              │
+     │                       owner approves
+     │                              ▼
+     │                         membership
+     │                              │
+     │                              ▼
+     │                        in_progress
+     │
+     ├── owner invite ───────► pending
+     │
+     └── private invite link ─► membership
+```
+
+در تأیید application از transaction + row lock روی project استفاده می‌شود تا دو درخواست همزمان ظرفیت را بیش از `maxMembers` نکنند.
+
+---
+
+# 5. File architecture
+
+```text
+Client
+  │ multipart/form-data
+  ▼
+POST /api/projects/[id]/files
+  │
+  ├── auth
+  ├── membership
+  ├── context validation
+  ├── deliverable policy
+  ├── 10MB check
+  ├── extension/MIME allow-list
+  │
+  ▼
+Vercel Blob
+  │
+  ▼
+project_files row
+```
+
+### نکته مهم امنیتی
+
+کد فعلی Blob را با:
+
+```text
+access: "public"
+```
+
+آپلود می‌کند.
+
+بنابراین:
+
+- API برای metadata دسترسی را کنترل می‌کند.
+- اما `fileUrl` یک URL عمومی Blob است.
+- اگر URL فایل private افشا شود، authorization API لزوماً جلوی دسترسی مستقیم به Blob را نمی‌گیرد.
+
+این مورد باید در threat model و تصمیم معماری آینده ثبت شود.
+
+---
+
+# 6. Admin architecture
+
+Admin دو مفهوم جدا دارد:
+
+### Role
+
+```text
+users.role = admin
+```
+
+### Scope
+
+```text
+admin_departments
+```
+
+پس:
+
+```text
+admin authorization
+        =
+role=admin
++
+department scope
+```
+
+اما همه endpointها scope یکسان ندارند.
+
+نمونه:
+
+- `/api/admin/professors` → scoped
+- `/api/admin/stats` → user counts scoped، project count سراسری
+- `/api/admin/projects` → در کد فعلی project list سراسری
+- `/api/admin/messages` → scope بر اساس ارتباط admin ↔ professor
+
+این تفاوت باید هنگام ممیزی امنیتی حفظ شود و فرض «همه APIهای admin دپارتمانی‌اند» اشتباه است.
+
+---
+
+# 7. Authentication lifecycle
+
+```text
+Register student
+    └─► approved
+        └─► JWT + cookie
+
+Register professor
+    └─► pending
+        └─► no login token
+              │
+              ▼
+        admin approval
+              │
+              ▼
+            login
+              │
+              ▼
+          JWT + cookie
+```
+
+در login:
+
+```text
+professorStatus != approved
+        │
+        ├── pending  → 403
+        └── rejected → 403
+```
+
+JWT stateless است؛ تغییر `professorStatus` در DB توکن صادرشده قبلی را به‌صورت خودکار invalidate نمی‌کند.
+
+---
+
+# 8. Deployment assumptions
+
+Environment variables استفاده‌شده در کد:
+
+```text
+DATABASE_URL
+JWT_SECRET
+JWT_EXPIRES_IN
+BLOB_READ_WRITE_TOKEN
+SEED_SECRET
+NODE_ENV
+```
+
+حداقل dependencyهای عملیاتی:
+
+- PostgreSQL
+- Vercel runtime
+- Vercel Blob برای فایل‌ها
+
+`JWT_SECRET` fallback ندارد و نبود آن باعث خطای runtime هنگام load شدن auth module می‌شود.
+
+---
+
+# 9. Single-tenant boundary
+
+Schema فعلی یک organization/institution مستقل ندارد.
+
+`department` یک PostgreSQL enum ثابت با 6 مقدار است.
+
+در نتیجه معماری فعلی:
+
+```text
+one deployment
+one fixed department universe
+```
+
+است و multi-tenant واقعی نیست.
+
+برای multi-tenant شدن، تغییرات آینده احتمالاً شامل:
+
+```text
+organizations
+departments
+organizationId on users/projects/...
+```
+
+و بازنگری تمام queryهای authorization/scope خواهد بود.
+
+---
+
+# 10. معماری مشاهده‌شده در حال حاضر
+
+### نقاط تثبیت‌شده
+
+- resource ownership برای پروژه‌ها بر پایه `creatorId`
+- membership جداگانه
+- admin scope جداگانه
+- application + invitation در یک مدل
+- project chat مستقل
+- direct admin-professor messaging
+- file metadata در DB و bytes در Blob
+- auth stateless JWT
+
+### محدودیت‌های معماری
+
+- rate limiting توزیع‌شده نیست.
+- refresh token / revocation وجود ندارد.
+- email verification وجود ندارد.
+- password reset وجود ندارد.
+- automated security test suite در کد ارسالی مشاهده نشد.
+- فایل‌ها با public Blob access ذخیره می‌شوند.
+- seed endpoint از نظر عملیاتی حساس است.
+- audit log به stdout وابسته است و سیستم tamper-proof/compliance audit نیست.
+- multi-tenant واقعی وجود ندارد.
+
+---
+
+# 11. قواعد عملیاتی برای تغییرات آینده
+
+هر تغییر production باید این موارد را مشخص کند:
+
+1. چه چیزی تغییر می‌کند؟
+2. چرا؟
+3. چه داده‌ای تحت تأثیر است؟
+4. ریسک چیست؟
+5. rollback چگونه است؟
+6. verification چگونه انجام می‌شود؟
+7. آیا migration لازم است؟
+8. آیا authorization جدید لازم است؟
+9. آیا audit event لازم است؟
+10. آیا API contract تغییر می‌کند؟
+
+برای تغییرات دیتابیس یا حذف داده، عملیات destructive بدون تأیید انسانی انجام نشود.

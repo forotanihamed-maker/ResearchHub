@@ -1,109 +1,594 @@
-# مدل امنیتی — ResearchHub
+# ResearchHub — مدل امنیتی (بازبینی بر اساس کد فعلی)
 
-این سند وضعیت امنیتی فعلی پروژه را برای Pilot توضیح می‌دهد: چه چیزی پیاده‌سازی و تست شده، و چه محدودیت‌هایی آگاهانه پذیرفته شده‌اند.
+> تاریخ بازبینی: 2026-09-24
+>
+> این سند وضعیت واقعی مشاهده‌شده در کد ارسالی را ثبت می‌کند. «پیاده‌سازی شده» به معنی «بدون ریسک» نیست؛ محدودیت‌های شناخته‌شده نیز صریحاً ثبت شده‌اند.
 
----
+# 1. خلاصه وضعیت
 
-## ۱. Authentication
-
-- پسورد با **bcrypt** (cost factor ۱۲) هش می‌شود؛ هرگز plain-text ذخیره نمی‌شود.
-- پسورد (حتی هش‌شده) هرگز در پاسخ API برنگردانده می‌شود (`{password: _pwd, ...safeUser}` قبل از هر response).
-- نشست کاربر با **JWT** مدیریت می‌شود، امضاشده با `JWT_SECRET` که **اجباراً** باید از environment variable بیاید — اگر تنظیم نشده باشد، برنامه اصلاً بالا نمی‌آید (بدون fallback ثابت).
-- توکن در کوکی با این ویژگی‌ها ذخیره می‌شود:
-  - `httpOnly: true` (غیرقابل‌دسترس از JavaScript، محافظت در برابر XSS token-theft)
-  - `secure: true` در production
-  - `sameSite: "lax"`
-  - انقضا: ۷ روز
-
----
-
-## ۲. Authorization
-
-هر endpoint حساس، نقش (`professor`/`student`) و مالکیت منبع را قبل از هر عملیات چک می‌کند:
-
-| منبع | قانون |
+| حوزه | وضعیت فعلی |
 |---|---|
-| ویرایش/حذف پروژه | فقط سازنده/مالک همان پروژه |
-| مشاهده/تأیید/رد درخواست‌های یک پروژه | فقط سازنده/مالک همان پروژه؛ پذیرش/رد دعوت نیز فقط توسط دانشجوی صاحب دعوت |
-| لغو یک درخواست | فقط دانشجوی **صاحب** همان درخواست، و فقط در وضعیت `pending` |
-| مشاهده/ارسال پیام و فایل پروژه | فقط عضو/سازندهٔ پروژه؛ `deliverable` فقط توسط سازنده و پس از `completed` |
-| لیست «درخواست‌های من» | همیشه scope به `studentId` خود کاربر لاگین‌شده، نه یک پارامتر قابل‌جعل |
-
-### IDOR (Insecure Direct Object Reference)
-تمام مسیرهایی که شناسهٔ عددی (`project id`, `application id`) از URL می‌گیرند:
-- ابتدا معتبر بودن عددی/مثبت بودن ID چک می‌شود (۴۰۰ در غیر این صورت).
-- سپس مالکیت/عضویت چک می‌شود؛ در صورت عدم تطابق، بسته به context یا `403` یا `404` برگردانده می‌شود (نه لو دادن اینکه منبع وجود دارد یا نه، در مسیرهای حساس‌تر).
-- این سناریوها (تغییر دستی project ID / application ID توسط کاربر غیرمجاز) به‌صورت دستی در طول توسعه بررسی و تأیید شده‌اند. **تست خودکار (automated test) برای این سناریوها هنوز نوشته نشده** — این یکی از اقلام اولویت‌دار پیش از باز شدن Pilot به مقیاس بزرگ‌تر است (به بخش ۹ نگاه کنید).
-
----
-
-## ۳. Rate Limiting
-
-| مسیر | محدودیت |
-|---|---|
-| `POST /api/auth/login` | ۵ تلاش ناموفق در ۱۵ دقیقه به‌ازای هر ایمیل؛ ۲۰ تلاش در ۱۵ دقیقه به‌ازای هر IP |
-| `POST /api/auth/register` | ۵ تلاش در ۱۵ دقیقه به‌ازای هر IP |
-| `PATCH /api/auth/password` | ۵ تلاش در ۱۵ دقیقه به‌ازای هر کاربر |
-| `POST /api/projects/[id]/messages` | ۲۰ پیام در دقیقه به‌ازای هر کاربر در هر پروژه |
-
-⚠️ **محدودیت شناخته‌شده:** این rate limiter‌ها **in-memory** هستند (نه Redis/DB-backed). روی Vercel (سرورلس)، این یعنی محافظت فقط در سطح یک instance گرم تضمین می‌شود، نه به‌صورت قطعی در کل ناوگان instance‌ها. برای ترافیک کم Pilot این کافی و بهتر از هیچ‌چیز است؛ برای مقیاس بزرگ‌تر باید با یک store مشترک (مثل Upstash Redis) جایگزین شود.
-
-**ثبت‌نام نیز rate limit دارد**: `POST /api/auth/register` حداکثر ۵ تلاش در ۱۵ دقیقه برای هر IP را می‌پذیرد و در حالت عبور از سقف `429` و `Retry-After` برمی‌گرداند. این limiter همچنان in-memory است.
+| Password hashing | bcryptjs با cost 12 |
+| JWT | پیاده‌سازی شده |
+| HttpOnly cookie | بله |
+| CSRF / Origin check | بله، در middleware API |
+| RBAC | بله |
+| Resource ownership | بله |
+| Admin department scope | بله، در endpointهای مربوط |
+| Rate limiting | بله، ولی in-memory |
+| Request body size guard | بله |
+| File size/type validation | بله |
+| Audit logging | بله، stdout/JSON |
+| Email verification | وجود ندارد |
+| Forgot/reset password | وجود ندارد |
+| Refresh token | وجود ندارد |
+| Token revocation فوری | وجود ندارد |
+| Automated security test suite | در کد ارسالی مشاهده نشد |
+| Public Blob file access | بله؛ یک ریسک/تصمیم معماری مهم |
 
 ---
 
-## ۴. محافظت CSRF
+# 2. Authentication
 
-چون احراز هویت مبتنی بر کوکیه (نه هدر)، `src/middleware.ts` روی همهٔ متدهای تغییردهنده (`POST`/`PUT`/`PATCH`/`DELETE`) هدر `Origin` (و در نبودش `Referer`) را با آدرس واقعی سرور (از هدر `Host`) مقایسه می‌کند و در صورت عدم تطابق، `403` برمی‌گرداند.
+## Password
 
-⚠️ **این فایل باید دقیقاً در `src/middleware.ts` باشد** (نه در ریشهٔ پروژه) تا Next.js آن را شناسایی کند — این مورد را در دیپلوی فعلی حتماً تأیید کنید (`npm run build` باید خط `ƒ Proxy (Middleware)` را در خروجی نشان دهد).
+کد از:
+
+```text
+bcryptjs
+cost = 12
+```
+
+استفاده می‌کند.
+
+Password در responseهای safe user برگردانده نمی‌شود.
+
+## JWT
+
+secret فقط از:
+
+```text
+process.env.JWT_SECRET
+```
+
+خوانده می‌شود.
+
+اگر تنظیم نشده باشد fallback ثابت وجود ندارد.
+
+Payload:
+
+```text
+userId
+email
+role
+name
+```
+
+## Cookie
+
+```text
+httpOnly = true
+secure = true in production
+sameSite = lax
+path = /
+```
+
+JWT stateless است.
+
+### محدودیت
+
+هیچ server-side session یا refresh token وجود ندارد.
+
+بنابراین:
+
+```text
+logout
+```
+
+کوکی مرورگر را حذف می‌کند، ولی اگر JWT قبلی در جای دیگری کپی شده باشد، تا زمان انقضا از سمت server blacklist نمی‌شود.
+
+همچنین تغییر password یا professorStatus به‌تنهایی JWT قبلی را revoke نمی‌کند.
 
 ---
 
-## ۵. محدودیت اندازهٔ Request
+# 3. Authorization
 
-همان `middleware.ts` هدر `Content-Length` را چک می‌کند و درخواست‌های بزرگ‌تر از ۱۰۰ کیلوبایت را با `413` رد می‌کند.
+Authorization در APIها فقط به UI متکی نیست.
 
-⚠️ **محدودیت شناخته‌شده:** این چک بر پایهٔ هدر `Content-Length` است؛ کلاینتی با `chunked transfer-encoding` (بدون این هدر) از این چک رد می‌شود. برای این API که فقط JSON ساده می‌پذیرد، ریسک این سناریو پایین است.
+## Project ownership
+
+source of truth:
+
+```text
+projects.creatorId
+```
+
+برای عملیات حساس مانند:
+
+- update project
+- delete project
+- approve/reject applications
+- invite
+- remove member
+- deliverable upload
+
+مالکیت server-side بررسی می‌شود.
+
+## Membership
+
+`projectMembers` برای دسترسی به:
+
+- project chat
+- project files
+- برخی جزئیات project
+
+استفاده می‌شود.
+
+## ID validation
+
+Routeهای دارای ID معمولاً ابتدا مثبت و integer بودن ID را بررسی می‌کنند.
+
+بعد از آن ownership/membership بررسی می‌شود.
 
 ---
 
-## ۶. Secrets
+# 4. IDOR / BOLA
 
-- هیچ secret واقعی (رمز دیتابیس، JWT secret) در کد یا فایل‌های commit‌شده وجود ندارد؛ همه از `process.env` خوانده می‌شوند.
-- `drizzle.config.ts` هم از `DATABASE_URL` محیطی استفاده می‌کند، نه مقدار هاردکد.
-- `.env.local` در `.gitignore` است.
+الگوی دفاعی فعلی:
+
+```text
+URL id
+  ↓
+parse/validate
+  ↓
+load resource
+  ↓
+check owner/member/subject
+  ↓
+allow or deny
+```
+
+این الگو در project/application/file/message routes دیده می‌شود.
+
+### وضعیت تست
+
+در کد ارسالی test suite امنیتی خودکار برای IDOR/BOLA مشاهده نشد.
+
+بنابراین برای Pilotهای بزرگ‌تر باید سناریوهای زیر به‌صورت automated test اضافه شوند:
+
+- student A → project B
+- student A → application B
+- professor A → project B
+- user A → file B
+- user A → message B
+- admin A → professor خارج از department scope
 
 ---
 
-## ۷. `/api/seed`
+# 5. Admin scope
 
-این مسیر می‌تواند کل دیتابیس را پاک/بازنویسی کند، پس حساس‌ترین endpoint پروژه است.
+Admin فقط با role شناخته نمی‌شود؛ برای برخی عملیات department scope نیز لازم است.
 
-- **بدون تنظیم `SEED_SECRET` در environment، این مسیر همیشه و در هر شرایطی `404` برمی‌گرداند** (fail-safe — فراموش‌کردن تنظیمش باعث باز موندن حفره نمی‌شه، برعکسش می‌شه).
-- با `SEED_SECRET` تنظیم‌شده، فقط درخواست‌هایی که مقدار دقیق را (از هدر `x-seed-secret` یا query `?secret=`) بفرستند اجازه دارند.
-- توصیهٔ عملیاتی: بعد از seed اولیهٔ Pilot، مقدار `SEED_SECRET` را از environment variables حذف کنید تا این مسیر برای همیشه غیرفعال شود.
+منبع scope:
+
+```text
+admin_departments
+```
+
+نمونه:
+
+```text
+GET/PATCH /api/admin/professors
+```
+
+استاد فقط اگر department او در scope admin باشد قابل مشاهده/تغییر است.
+
+اما این قانون برای همه endpointهای admin یکسان نیست.
+
+نکته مهم:
+
+```text
+/admin/projects
+```
+
+در کد فعلی project list را سراسری برمی‌گرداند.
+
+همچنین:
+
+```text
+/admin/stats
+```
+
+user counts را scoped ولی project count را global می‌دهد.
+
+این تفاوت باید بخشی از threat model و policy رسمی باشد.
 
 ---
 
-## ۸. Audit Logging
+# 6. CSRF
 
-رویدادهای امنیتی مهم (`login_success`, `login_failed`, `login_rate_limited`, `register_success`, `register_rate_limited`, `password_changed`, `password_change_failed`, `password_change_rate_limited`, `seed_denied`, `seed_executed`, `project_deleted`, `application_approved`, `application_rejected`, `professor_status_changed`, `project_file_uploaded`, `project_file_deleted`) به‌صورت خط JSON ساختاریافته به `stdout` نوشته می‌شوند و در داشبورد Logs ورسل قابل‌مشاهده و جستجو هستند.
+Middleware روی:
 
-⚠️ **محدودیت شناخته‌شده:** این یک audit trail سطح compliance یا tamper-proof نیست؛ فقط به‌اندازهٔ retention پلتفرم دوام دارد. برای Pilot کافی است.
+```text
+POST
+PUT
+PATCH
+DELETE
+```
+
+اجرا می‌شود.
+
+Source:
+
+```text
+Origin
+```
+
+و در نبود آن:
+
+```text
+Referer
+```
+
+با origin مورد انتظار ساخته‌شده از Host/protocol مقایسه می‌شود.
+
+عدم تطابق:
+
+```text
+403
+```
+
+نکته:
+
+اگر Origin/Referer هر دو کاملاً غایب باشند، middleware فعلی request را عبور می‌دهد.
+
+این تصمیم برای سازگاری با curl/server-to-server/edge cases گرفته شده، اما یک hardening point بالقوه است.
 
 ---
 
-## ۹. جمع‌بندی محدودیت‌های شناخته‌شده (Known Limitations)
+# 7. Request size protection
 
-| مورد | وضعیت |
-|---|---|
-| Rate limiting روی Register | پیاده‌سازی شده، ولی in-memory و per-IP |
-| Rate limiting توزیع‌شده (چند instance) | in-memory، نه Redis-backed |
-| محدودیت اندازهٔ body برای chunked requests | پوشش کامل ندارد (فقط بر پایهٔ Content-Length) |
-| Email verification | پیاده‌سازی نشده |
-| Audit log با retention تضمین‌شده | پیاده‌سازی نشده (فقط stdout/Vercel logs) |
-| ایجاد کنترل‌شدهٔ حساب Professor | استاد خودش ثبت‌نام می‌کند و ادمین وضعیت `professorStatus` را تأیید/رد می‌کند |
-| تست خودکار (Unit/Integration) | پیاده‌سازی نشده — سناریوهای امنیتی فعلاً فقط با بررسی دستی تأیید شده‌اند |
+Middleware:
 
-هیچ‌کدام از این موارد برای شروع Pilot اولیهٔ کنترل‌شده (یک دانشکده، کاربران شناخته‌شده) مانع نیست، ولی باید قبل از باز شدن به مقیاس بزرگ‌تر یا عمومی رسیدگی شوند.
+```text
+non-multipart: 100KB
+multipart: 11MB
+```
+
+اما check بر اساس:
+
+```text
+Content-Length
+```
+
+است.
+
+در نتیجه requestهای chunked که Content-Length ندارند ممکن است از این guard عبور کنند.
+
+برای file upload، route خودش نیز:
+
+```text
+file.size <= 10MB
+```
+
+را enforce می‌کند.
+
+---
+
+# 8. Rate limiting
+
+پیاده‌سازی:
+
+```text
+src/lib/rateLimit.ts
+```
+
+و state در:
+
+```text
+Map<string, Bucket>
+```
+
+است.
+
+## Login
+
+```text
+email: 5 / 15min
+IP:    20 / 15min
+```
+
+## Register
+
+```text
+IP: 5 / 15min
+```
+
+## Password change
+
+```text
+user: 5 / 15min
+```
+
+## Project chat
+
+```text
+user + project: 20 / min
+```
+
+### ریسک معماری
+
+In-memory بودن یعنی:
+
+```text
+instance A
+instance B
+cold start
+```
+
+state مشترک ندارند.
+
+بنابراین rate limiting global و قطعی نیست.
+
+برای scale واقعی باید shared store مانند Redis/Upstash یا راهکار معادل در نظر گرفته شود.
+
+---
+
+# 9. File security
+
+Validation فعلی:
+
+- حداکثر 10MB
+- extension allow-list
+- MIME allow-list
+- sanitize نام فایل برای path
+- authorization قبل از upload
+
+Allowed:
+
+```text
+pdf
+doc
+docx
+zip
+png
+jpg
+jpeg
+```
+
+## نکته مهم
+
+Vercel Blob با:
+
+```text
+access: "public"
+```
+
+آپلود می‌شود.
+
+بنابراین دو لایه را باید از هم جدا کرد:
+
+```text
+API authorization
+≠
+Blob object authorization
+```
+
+API برای metadata دسترسی را کنترل می‌کند، اما URL Blob public است.
+
+### اثر عملیاتی
+
+برای فایل‌های حساس پژوهشی/دانشگاهی، افشای URL می‌تواند دسترسی مستقیم به object را ممکن کند.
+
+این یکی از مهم‌ترین مواردی است که پیش از استفاده گسترده باید تصمیم‌گیری شود:
+
+- public URLs پذیرفته شود،
+- یا storage/private access/signed URL architecture اضافه شود.
+
+---
+
+# 10. Seed endpoint
+
+مسیر:
+
+```text
+/api/seed
+```
+
+توانایی عملیات destructive دارد.
+
+بدون:
+
+```text
+SEED_SECRET
+```
+
+route عمداً `404` می‌دهد.
+
+با secret، header یا query پذیرفته می‌شود.
+
+### ریسک
+
+قرار دادن secret در query string:
+
+```text
+?secret=...
+```
+
+از نظر عملیاتی مناسب نیست، چون query string ممکن است در log/history/observability دیده شود.
+
+روش ترجیحی برای عملیات عملیاتی:
+
+```text
+x-seed-secret
+```
+
+و مهم‌تر از آن:
+
+> بعد از seed اولیه، endpoint در production غیرفعال یا حذف شود.
+
+---
+
+# 11. Audit logging
+
+Audit eventهای مشاهده‌شده شامل مواردی مانند:
+
+```text
+login_success
+login_failed
+login_rate_limited
+professor_pending_login
+professor_rejected_login
+register_success
+register_rate_limited
+seed_denied
+seed_executed
+project_deleted
+application_approved
+application_rejected
+professor_created
+professor_status_changed
+project_file_uploaded
+project_file_deleted
+message_edited
+message_deleted
+password_change_rate_limited
+password_change_failed
+password_changed
+```
+
+خروجی:
+
+```text
+stdout
+JSON structured log
+```
+
+### محدودیت
+
+این سیستم:
+
+- tamper-proof نیست
+- retention مستقل ندارد
+- compliance-grade audit store نیست
+
+برای Pilot ممکن است کافی باشد، اما برای نیازهای رسمی باید log storage مستقل/immutable تعریف شود.
+
+---
+
+# 12. Missing security controls
+
+در کد فعلی موارد زیر مشاهده نشد:
+
+## Email verification
+
+هر کاربر می‌تواند با email واردشده ثبت‌نام کند؛ verification flow وجود ندارد.
+
+## Password reset
+
+Forgot password / reset token flow وجود ندارد.
+
+## Refresh tokens
+
+وجود ندارد.
+
+## Session revocation
+
+وجود ندارد.
+
+## Automated security tests
+
+در archive ارسالی test suite امنیتی مستقل مشاهده نشد.
+
+---
+
+# 13. Threat priorities
+
+برای ادامه‌ی hardening، موارد زیر باید به‌ترتیب بررسی عملیاتی شوند:
+
+### A — فایل‌های public
+
+تصمیم‌گیری درباره public Blob URLs و در صورت نیاز مهاجرت به private/signed access.
+
+### B — rate limiting توزیع‌شده
+
+جایگزینی in-memory limiter با shared store.
+
+### C — automated authorization tests
+
+پوشش IDOR/BOLA و admin scope.
+
+### D — session lifecycle
+
+در صورت نیاز business:
+
+- refresh token
+- session registry
+- revocation
+
+### E — account lifecycle
+
+در صورت نیاز:
+
+- email verification
+- password reset
+
+### F — audit durability
+
+انتقال audit log از stdout-only به storage با retention و access policy مشخص.
+
+---
+
+# 14. Security verification checklist
+
+برای هر release:
+
+```text
+[ ] login student
+[ ] login approved professor
+[ ] pending professor denied
+[ ] rejected professor denied
+[ ] invalid password denied
+[ ] rate limit login
+[ ] CSRF cross-origin mutation denied
+[ ] project ownership checked
+[ ] application ownership checked
+[ ] invitation ownership checked
+[ ] file ownership checked
+[ ] message ownership checked
+[ ] admin department scope checked
+[ ] file >10MB rejected
+[ ] invalid MIME/extension rejected
+[ ] seed disabled without secret
+[ ] health endpoint works
+[ ] audit events visible in logs
+```
+
+برای production releaseهای مهم، نتیجه هر مورد باید ثبت شود.
+
+---
+
+# 15. Operational safety rules
+
+هیچ‌یک از موارد زیر بدون تأیید انسانی و برنامه rollback انجام نشود:
+
+- `clear` یا `force` seed
+- حذف/بازسازی migration
+- حذف production data
+- تغییر JWT secret
+- تغییر database credentials
+- تغییر storage access
+- migrationهای destructive
+- rotation secrets بدون برنامه برای active sessions
+
+قبل از تغییر:
+
+```text
+What?
+Why?
+Risk?
+Backup?
+Rollback?
+Verification?
+Approval?
+```

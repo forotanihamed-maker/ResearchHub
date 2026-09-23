@@ -68,6 +68,17 @@ export const fileContextEnum = pgEnum("file_context", [
   "document",
   "deliverable",
 ]);
+// Tasks — فضای اجرای پروژه، فاز ۱ (ه.۱).
+export const taskStatusEnum = pgEnum("task_status", [
+  "todo",
+  "in_progress",
+  "done",
+]);
+export const taskPriorityEnum = pgEnum("task_priority", [
+  "low",
+  "medium",
+  "high",
+]);
 
 // Users
 export const users = pgTable(
@@ -157,8 +168,9 @@ export const projects = pgTable(
     inviteToken: varchar("invite_token", { length: 128 }).unique(),
     // Kept temporarily for backward compatibility with legacy queries/data.
     // New projects use creatorId/creatorRole as the source of truth.
-    professorId: integer("professor_id")
-      .references(() => users.id, { onDelete: "cascade" }),
+    professorId: integer("professor_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
     maxMembers: integer("max_members").notNull().default(5),
     deadline: timestamp("deadline"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -184,7 +196,9 @@ export const applications = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     status: applicationStatusEnum("status").notNull().default("pending"),
-    source: applicationSourceEnum("source").notNull().default("student_application"),
+    source: applicationSourceEnum("source")
+      .notNull()
+      .default("student_application"),
     message: text("message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -268,6 +282,46 @@ export const projectFiles = pgTable(
   ]
 );
 
+// Tasks — فضای اجرای پروژه، فاز ۱ (ه.۱). هسته‌ی اجرای واقعی پروژه؛ هر عضو
+// پروژه می‌تواند Task بسازد، فقط مسئول یا مالک پروژه می‌تواند آن را ویرایش
+// کند، فقط مالک می‌تواند مسئول را عوض یا Task را حذف کند (Hard Delete).
+// «عقب‌افتاده» یک وضعیت ذخیره‌شده نیست — در لحظه‌ی خواندن از روی dueDate و
+// status محاسبه می‌شود (همان الگوی overdue در Faculty Overview).
+// milestoneId عمداً در این فاز اضافه نشده — در فاز ۲ (نقاط پیشرفت) اضافه
+// می‌شود.
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    creatorId: integer("creator_id")
+      .notNull()
+      .references(() => users.id),
+    // Nullable: a task can exist unassigned. When set, the API layer (not
+    // a DB constraint) enforces that it is a current member of the same
+    // project.
+    assigneeId: integer("assignee_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    status: taskStatusEnum("status").notNull().default("todo"),
+    priority: taskPriorityEnum("priority").notNull().default("medium"),
+    startDate: timestamp("start_date"),
+    dueDate: timestamp("due_date"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("tasks_project_id_idx").on(table.projectId),
+    index("tasks_assignee_id_idx").on(table.assigneeId),
+    index("tasks_status_idx").on(table.status),
+    index("tasks_due_date_idx").on(table.dueDate),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   ownedProjects: many(projects, { relationName: "projectCreator" }),
@@ -279,6 +333,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   sentDirectMessages: many(directMessages, { relationName: "sender" }),
   receivedDirectMessages: many(directMessages, { relationName: "recipient" }),
   uploadedFiles: many(projectFiles),
+  createdTasks: many(tasks, { relationName: "taskCreator" }),
+  assignedTasks: many(tasks, { relationName: "taskAssignee" }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -296,6 +352,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   members: many(projectMembers),
   chatMessages: many(chatMessages),
   files: many(projectFiles),
+  tasks: many(tasks),
 }));
 
 export const applicationsRelations = relations(applications, ({ one }) => ({
@@ -347,6 +404,23 @@ export const projectFilesRelations = relations(projectFiles, ({ one }) => ({
   chatMessage: one(chatMessages, {
     fields: [projectFiles.chatMessageId],
     references: [chatMessages.id],
+  }),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  project: one(projects, {
+    fields: [tasks.projectId],
+    references: [projects.id],
+  }),
+  creator: one(users, {
+    fields: [tasks.creatorId],
+    references: [users.id],
+    relationName: "taskCreator",
+  }),
+  assignee: one(users, {
+    fields: [tasks.assigneeId],
+    references: [users.id],
+    relationName: "taskAssignee",
   }),
 }));
 
