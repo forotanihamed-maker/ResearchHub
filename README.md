@@ -270,6 +270,26 @@ deliverable
 
 ---
 
+## Tasks (جدید — از سورس استخراج شده، در نسخه‌ی قبلی README نبود)
+
+پس از تشکیل تیم، فضای اجرای پروژه با Task فعال می‌شود:
+
+```text
+status:   todo | in_progress | done
+priority: low | medium | high
+```
+
+قوانین دسترسی:
+
+- ساخت Task: هر عضو پروژه (شامل مالک).
+- ویرایش جزئیات (عنوان/توضیح/وضعیت/اولویت/تاریخ): مسئول Task یا مالک پروژه.
+- تغییر مسئول (assignee): فقط مالک پروژه.
+- حذف: فقط مالک پروژه (Hard Delete).
+
+«عقب‌افتادگی» ذخیره نمی‌شود؛ بر اساس `dueDate` و `status` در لحظه محاسبه می‌شود.
+
+---
+
 # نقش‌های کاربری
 
 ## Student
@@ -561,17 +581,21 @@ APIهای اصلی سیستم در زیر قرار دارند:
 │   │   ├── files
 │   │   ├── invite
 │   │   ├── members
-│   │   └── messages
+│   │   ├── messages
+│   │   └── tasks          ← جدید (فضای اجرای پروژه)
 │
 ├── admin
 │   ├── stats
 │   ├── departments
 │   ├── professors
 │   ├── projects
-│   └── messages
+│   ├── messages
+│   └── faculty-overview   ← جدید (دید مدیریتی پروژه‌های نیازمند توجه)
 │
 └── seed
 ```
+
+> **تطبیق با سورس (این نسخه):** دو مسیر `tasks` و `admin/faculty-overview` در نسخه‌ی قبلی این README وجود نداشتند و از سورس کامل استخراج شدند. جزئیات کامل رفتار و سطوح دسترسی هرکدام در `ARCHITECTURE.md` (بخش‌های «tasks» و «۶.۱») و `SECURITY.md` آمده.
 
 مرجع کامل API در فایل:
 
@@ -612,7 +636,10 @@ users
         │
         ├── chatMessages
         │
-        └── projectFiles
+        ├── projectFiles
+        │
+        └── tasks   ← جدید: title, description, status, priority,
+                        startDate, dueDate, creatorId, assigneeId
 ```
 
 Admin نیز از طریق `adminDepartments` به دپارتمان‌های تحت مدیریت خود متصل می‌شود.

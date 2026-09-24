@@ -1,30 +1,34 @@
 # ResearchHub — مدل امنیتی (بازبینی بر اساس کد فعلی)
 
-> تاریخ بازبینی: 2026-09-24
+> تاریخ بازبینی: 2026-09-24 → تطبیق مجدد با سورس کامل: 2026-09-24
 >
 > این سند وضعیت واقعی مشاهده‌شده در کد ارسالی را ثبت می‌کند. «پیاده‌سازی شده» به معنی «بدون ریسک» نیست؛ محدودیت‌های شناخته‌شده نیز صریحاً ثبت شده‌اند.
+>
+> **یادداشت تطبیق:** با خواندن کامل پوشه‌ی `src/` (نه فقط مستندات قبلی)، دو تغییر اصلی اعمال شد: (۱) افزودن رویدادهای audit مربوط به Tasks، (۲) ثبت یک ناسازگاری واقعی در audit log که در بازبینی مستندات قبلی دیده نشده بود. هیچ‌کدام از ریسک‌های قبلاً ثبت‌شده (public Blob، نبود password reset، rate limiting درون‌حافظه‌ای) در سورس برطرف نشده‌اند — همه با مشاهده‌ی مستقیم کد تأیید مجدد شدند.
 
 # 1. خلاصه وضعیت
 
-| حوزه | وضعیت فعلی |
-|---|---|
-| Password hashing | bcryptjs با cost 12 |
-| JWT | پیاده‌سازی شده |
-| HttpOnly cookie | بله |
-| CSRF / Origin check | بله، در middleware API |
-| RBAC | بله |
-| Resource ownership | بله |
-| Admin department scope | بله، در endpointهای مربوط |
-| Rate limiting | بله، ولی in-memory |
-| Request body size guard | بله |
-| File size/type validation | بله |
-| Audit logging | بله، stdout/JSON |
-| Email verification | وجود ندارد |
-| Forgot/reset password | وجود ندارد |
-| Refresh token | وجود ندارد |
-| Token revocation فوری | وجود ندارد |
-| Automated security test suite | در کد ارسالی مشاهده نشد |
-| Public Blob file access | بله؛ یک ریسک/تصمیم معماری مهم |
+| حوزه                          | وضعیت فعلی                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| Password hashing              | bcryptjs با cost 12                                                                              |
+| JWT                           | پیاده‌سازی شده                                                                                   |
+| HttpOnly cookie               | بله                                                                                              |
+| CSRF / Origin check           | بله، در middleware API                                                                           |
+| RBAC                          | بله                                                                                              |
+| Resource ownership            | بله                                                                                              |
+| Admin department scope        | بله، در endpointهای مربوط                                                                        |
+| Rate limiting                 | بله، ولی in-memory                                                                               |
+| Request body size guard       | بله                                                                                              |
+| File size/type validation     | بله                                                                                              |
+| Audit logging                 | بله، stdout/JSON                                                                                 |
+| Email verification            | وجود ندارد                                                                                       |
+| Forgot/reset password         | وجود ندارد                                                                                       |
+| Refresh token                 | وجود ندارد                                                                                       |
+| Token revocation فوری         | وجود ندارد                                                                                       |
+| Automated security test suite | در کد ارسالی مشاهده نشد                                                                          |
+| Public Blob file access       | بله؛ یک ریسک/تصمیم معماری مهم                                                                    |
+| Tasks authorization (جدید)    | بله؛ سطوح member/assignee/owner جدا از هم enforce می‌شوند                                        |
+| Audit event type consistency  | ناسازگار؛ `message_edited`/`message_deleted` صدا زده می‌شوند ولی در type تعریف نشده‌اند (بخش ۱۱) |
 
 ---
 
@@ -161,6 +165,8 @@ allow or deny
 - professor A → project B
 - user A → file B
 - user A → message B
+- **user A → task B در پروژه‌ای که عضو آن نیست (جدید — تأیید در کد: `isMember` قبل از GET/POST، `isOwner`/`isAssignee` قبل از PATCH، `isOwner` قبل از DELETE)**
+- **تغییر assignee توسط غیرمالک (جدید — باید 403 بگیرد)**
 - admin A → professor خارج از department scope
 
 ---
@@ -201,7 +207,13 @@ GET/PATCH /api/admin/professors
 
 user counts را scoped ولی project count را global می‌دهد.
 
-این تفاوت باید بخشی از threat model و policy رسمی باشد.
+**اصلاحیه نسبت به نسخه‌ی قبلی این سند:** با خواندن کد `admin/stats/route.ts` مشخص شد این رفتار یک تصمیم عمدی و مستندشده در خود کد است، نه یک نقص کشف‌نشده:
+
+> «Projects are intentionally university-wide for admin supervision. User counts remain scoped to the admin's assigned departments.»
+
+پس این نباید در ممیزی‌های بعدی به‌عنوان یافته‌ی جدید گزارش شود؛ باید صرفاً تأیید شود که پیاده‌سازی با این تصمیم مستند مطابق است.
+
+**Endpoint جدید — `/api/admin/faculty-overview`:** scope خودش را دارد و با بقیه فرق می‌کند: علاوه بر department scope، فقط پروژه‌های `public` و `creatorRole = professor` را نشان می‌دهد (پروژه‌های خصوصی و پروژه‌های ساخته‌شده توسط دانشجو، صرف‌نظر از visibility، عمداً از این دید مدیریتی حذف می‌شوند). این باید به‌عنوان یک سطح scope مجزا در threat model ثبت شود، نه با `/admin/projects` یا `/admin/stats` یکی گرفته شود.
 
 ---
 
@@ -455,6 +467,9 @@ message_deleted
 password_change_rate_limited
 password_change_failed
 password_changed
+task_created
+task_updated
+task_deleted
 ```
 
 خروجی:
@@ -463,6 +478,17 @@ password_changed
 stdout
 JSON structured log
 ```
+
+### یافته‌ی جدید — ناسازگاری در تعریف نوع (Type) رویدادها
+
+با مقایسه‌ی مستقیم تعریف نوع (`AuditEvent` در `src/lib/auditLog.ts`) با محل‌های واقعی فراخوانی `auditLog(...)` در کد، دو رویداد پیدا شد که **صدا زده می‌شوند ولی در تعریف نوع نیستند**:
+
+```text
+message_edited   (فراخوانی در messages/[messageId]/route.ts)
+message_deleted  (فراخوانی در messages/[messageId]/route.ts)
+```
+
+این یعنی این دو رشته در `AuditEvent` union تعریف نشده‌اند، در حالی که در کد استفاده می‌شوند. اگر build با type-check سخت‌گیرانه اجرا شود (رفتار پیش‌فرض `next build` با TypeScript)، این می‌تواند خطای کامپایل ایجاد کند. چون `tsconfig.json` و `next.config` در آرشیو سورس ارسالی نبودند، نمی‌توان با قطعیت گفت این خطا فعلاً build را می‌شکند یا نه — اما به‌عنوان یک دِین فنی واقعی و قابل‌اصلاح سریع (افزودن دو مقدار به union) باید در اولین فرصت رفع شود، پیش از هر ادعای «type-safe بودن audit log» در مستندات فروش/فنی.
 
 ### محدودیت
 
@@ -556,7 +582,9 @@ Forgot password / reset token flow وجود ندارد.
 [ ] invitation ownership checked
 [ ] file ownership checked
 [ ] message ownership checked
+[ ] task access checked (non-member denied, PATCH by non-assignee/non-owner denied, DELETE by non-owner denied, assignee change by non-owner denied)
 [ ] admin department scope checked
+[ ] admin faculty-overview scope checked (private و پروژه‌های دانشجویی خارج از دید بمانند)
 [ ] file >10MB rejected
 [ ] invalid MIME/extension rejected
 [ ] seed disabled without secret

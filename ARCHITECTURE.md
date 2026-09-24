@@ -1,8 +1,10 @@
 # ResearchHub — مستند معماری (نسخه بازبینی‌شده)
 
-> تاریخ بازبینی: 2026-09-24
+> تاریخ بازبینی: 2026-09-24 → تطبیق مجدد با سورس کامل: 2026-09-24
 >
 > این سند بر اساس ساختار واقعی کد ارسالی و schema فعلی نوشته شده است. تمرکز آن روی معماری اجرایی، مرزهای امنیتی، داده و جریان‌های اصلی است.
+>
+> **یادداشت تطبیق:** این نسخه با فولدر کامل `src/` (همه‌ی route های API، schema، middleware، lib) بازبینی و اصلاح شده. تغییرات نسبت به نسخه‌ی قبلی: افزودن جدول و endpointهای `tasks` (بخش اجرای پروژه)، افزودن endpoint جدید `/api/admin/faculty-overview`، و ثبت دقیق‌تر تصمیمات scope ادمین که در نسخه‌ی قبلی به‌اشتباه «ناسازگاری» توصیف شده بودند ولی در کد به‌صورت صریح و عمدی مستند شده‌اند. توجه: آرشیو ارسالی فقط پوشه‌ی `src/` بود؛ `package.json`، `tsconfig.json` و `next.config` در آن نبودند، بنابراین برخی جزئیات build/deploy از این سند قابل تأیید مستقل نیستند و همچنان بر پایه‌ی مشاهده‌ی قبلی گزارش می‌شوند.
 
 ## 1. نمای کلی
 
@@ -243,7 +245,10 @@ project_members
 chat_messages
 project_files
 direct_messages
+tasks
 ```
+
+> جدول `tasks` در نسخه‌ی قبلی این سند وجود نداشت؛ در سورس کامل موجود است (به بخش «۳.۱ tasks» زیر مراجعه کنید).
 
 ## users
 
@@ -350,6 +355,47 @@ bytes فایل در DB نیست؛ در Vercel Blob قرار می‌گیرد.
 
 این سیستم از project chat جداست.
 
+## tasks (جدید — فضای اجرای پروژه، فاز ۱)
+
+فیلدها:
+
+```text
+id
+projectId
+title
+description
+creatorId
+assigneeId   (nullable)
+status       todo | in_progress | done
+priority     low | medium | high
+startDate
+dueDate
+createdAt
+updatedAt
+```
+
+نکات مهم منطق کسب‌وکار (از کد route ها استخراج شده، نه فرض):
+
+- ساخت Task: هر عضو پروژه (شامل مالک).
+- ویرایش عنوان/توضیح/وضعیت/اولویت/تاریخ‌ها: مسئول (`assignee`) یا مالک پروژه.
+- تغییر مسئول (`assigneeId`): **فقط مالک پروژه** — این یک تصمیم محصول جداست، عمداً از ویرایش عمومی جدا شده.
+- حذف: فقط مالک پروژه، و Hard Delete است (رکورد واقعاً از دیتابیس حذف می‌شود، نه soft-delete).
+- «عقب‌افتاده» (`overdue`) یک ستون ذخیره‌شده در دیتابیس نیست؛ در لحظه‌ی خواندن از روی `dueDate` و `status` محاسبه می‌شود (همان الگویی که در Faculty Overview هم استفاده شده — بخش ۶.۱).
+- `milestoneId` عمداً در این فاز اضافه نشده (طبق کامنت کد، برای فاز ۲ / «نقاط پیشرفت» رزرو شده است).
+
+این جدول همان چیزی است که مسیر محصول را از «فقط شکل‌دهی تیم» به «رهگیری اجرای واقعی پروژه پس از تشکیل تیم» می‌برد.
+
+## نکته: `project.type` (جدول projects)
+
+فیلد `type` که در نسخه‌ی قبلی این سند فقط نام برده شده بود، مقادیر ثابت زیر را دارد (`project_type` enum):
+
+```text
+thesis       → پایان‌نامه
+internship   → کارآموزی
+course       → پروژه‌ی درسی
+research     → پژوهشی (پیش‌فرض)
+```
+
 ---
 
 # 4. Project lifecycle
@@ -451,11 +497,26 @@ department scope
 نمونه:
 
 - `/api/admin/professors` → scoped
-- `/api/admin/stats` → user counts scoped، project count سراسری
-- `/api/admin/projects` → در کد فعلی project list سراسری
+- `/api/admin/stats` → user counts (`students`, `professors`) دپارتمانی، ولی project count سراسری
+- `/api/admin/projects` → project list سراسری
 - `/api/admin/messages` → scope بر اساس ارتباط admin ↔ professor
+- `/api/admin/faculty-overview` (جدید) → scope خودش را دارد، جدا از بقیه (به ۶.۱ نگاه کنید)
 
-این تفاوت باید هنگام ممیزی امنیتی حفظ شود و فرض «همه APIهای admin دپارتمانی‌اند» اشتباه است.
+**اصلاحیه نسبت به نسخه‌ی قبلی این سند:** در بازبینی قبلی این تفاوت به‌عنوان یک ناسازگاری/ریسک احتمالی ثبت شده بود. با خواندن کد کامل مشخص شد که این یک **تصمیم عمدی و صریحاً مستندشده در کامنت‌های کد** است، نه یک نقص:
+
+> «`/admin/stats`: Projects are intentionally university-wide for admin supervision. User counts remain scoped to the admin's assigned departments.»
+
+بنابراین فرض «همه APIهای admin باید دپارتمانی باشند» از اول اشتباه بوده؛ طراحی فعلی عمداً بین «نظارت سراسری روی تعداد/فهرست پروژه‌ها» و «دسترسی دپارتمانی به هویت افراد (استاد/دانشجو)» تفکیک قائل شده. این تفکیک باید در threat model و مستندات فروش هم به همین صراحت بیان شود تا در ارزیابی امنیتی بعدی دوباره به‌اشتباه «باگ» تلقی نشود.
+
+## ۶.۱ `/api/admin/faculty-overview` (Faculty Project Control Center)
+
+Endpoint جدیدی که در نسخه‌ی قبلی این سند وجود نداشت. یک دید مدیریتی «پروژه‌های نیازمند توجه» برای ادمین دپارتمانی می‌سازد. Scope آن با سه شرط هم‌زمان محاسبه می‌شود (طبق کامنت کد، «Option 2, approved»):
+
+1. پروژه `public` باشد (پروژه‌ی خصوصی هرگز اینجا نشان داده نمی‌شود، حتی اگر عضوی از دپارتمان admin در آن باشد).
+2. `creatorRole = professor` باشد (پروژه‌های ساخته‌شده توسط دانشجو عمداً حذف می‌شوند — تصمیم محصول: تمرکز فعلی روی پروژه‌های دانشکده‌ای/استاد-محور است).
+3. حداقل یک عضو پروژه به یکی از دپارتمان‌های admin تعلق داشته باشد (نه فقط سازنده‌ی پروژه) — این پروژه‌های میان‌دپارتمانی را هم پوشش می‌دهد.
+
+در این نسخه (V2) تنها دلیل معتبر برای «نیاز به توجه» گذشتن از مهلت (`overdue`) است؛ ظرفیت خالی صرفاً اطلاعاتی است و در `reasons` قرار نمی‌گیرد. این دقیقاً همان endpointی است که به‌عنوان مسیر «گزارش‌دهی/دید مدیریتی» در تحلیل بازار قابل‌فروش به معاونت پژوهشی یا دفتر ارتباط با صنعت مطرح شد.
 
 ---
 
@@ -549,24 +610,27 @@ organizationId on users/projects/...
 
 - resource ownership برای پروژه‌ها بر پایه `creatorId`
 - membership جداگانه
-- admin scope جداگانه
+- admin scope جداگانه، با تفکیک عمدی و مستند «نظارت سراسری» در برابر «دسترسی دپارتمانی به افراد» (بخش ۶ و ۶.۱)
 - application + invitation در یک مدل
 - project chat مستقل
 - direct admin-professor messaging
 - file metadata در DB و bytes در Blob
 - auth stateless JWT
+- **Tasks (جدید)**: فضای اجرای واقعی پروژه پس از تشکیل تیم، با مجوزدهی چندسطحی (member/assignee/owner) پیاده‌سازی‌شده
+- **Faculty Overview (جدید)**: دید مدیریتی «پروژه‌های نیازمند توجه» برای ادمین، با منطق scope صریح در کد
 
 ### محدودیت‌های معماری
 
-- rate limiting توزیع‌شده نیست.
+- rate limiting توزیع‌شده نیست (هنوز؛ کد صراحتاً همین محدودیت را در کامنت خودش تأیید می‌کند).
 - refresh token / revocation وجود ندارد.
 - email verification وجود ندارد.
-- password reset وجود ندارد.
+- password reset (فراموشی رمز) وجود ندارد — فقط تغییر رمز برای کاربر لاگین‌شده هست.
 - automated security test suite در کد ارسالی مشاهده نشد.
-- فایل‌ها با public Blob access ذخیره می‌شوند.
+- فایل‌ها همچنان با public Blob access ذخیره می‌شوند (`access: "public"` در route فعلی — تأییدشده در سورس).
 - seed endpoint از نظر عملیاتی حساس است.
 - audit log به stdout وابسته است و سیستم tamper-proof/compliance audit نیست.
 - multi-tenant واقعی وجود ندارد.
+- **یافته‌ی جدید — ناسازگاری نوع (type) در audit log:** رویدادهای `message_edited` و `message_deleted` در دو جای کد (`messages/[messageId]/route.ts`) صدا زده می‌شوند، اما در type union مربوطه (`AuditEvent` در `src/lib/auditLog.ts`) وجود ندارند. این یک ناسازگاری واقعی بین کد فراخوان و تعریف نوع است؛ بسته به سخت‌گیری build (که به دلیل نبود `tsconfig.json`/`next.config` در آرشیو ارسالی قابل تأیید نیست)، این می‌تواند خطای type-check در `next build` ایجاد کند. پیشنهاد: افزودن این دو مقدار به `AuditEvent`.
 
 ---
 
