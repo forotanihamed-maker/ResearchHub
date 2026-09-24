@@ -23,7 +23,32 @@ export async function getProjectAccess(projectId: number, userId: number) {
   const [membership] = await db
     .select({ userId: projectMembers.userId })
     .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+    .where(
+      and(
+        eq(projectMembers.projectId, projectId),
+        eq(projectMembers.userId, userId)
+      )
+    );
 
   return { project, isOwner, isMember: isOwner || Boolean(membership) };
+}
+
+// ه.۱ — آیا userId عضو (یا مالک) پروژه است؟ برای اعتبارسنجی assigneeId در
+// Tasks استفاده می‌شود (باید عضو همان پروژه باشد).
+export async function isProjectParticipant(
+  projectId: number,
+  userId: number,
+  creatorId: number
+) {
+  if (userId === creatorId) return true;
+  const [membership] = await db
+    .select({ userId: projectMembers.userId })
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, projectId),
+        eq(projectMembers.userId, userId)
+      )
+    );
+  return Boolean(membership);
 }

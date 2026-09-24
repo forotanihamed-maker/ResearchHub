@@ -32,6 +32,31 @@ export const DESCRIPTION_MAX = 5000;
 export const MAX_MEMBERS_MIN = 1;
 export const MAX_MEMBERS_MAX = 50;
 
+// ه.۱ — Tasks (فضای اجرای پروژه، فاز ۱).
+export const TASK_TITLE_MIN = 3;
+export const TASK_TITLE_MAX = 200; // matches varchar(200) in schema
+export const TASK_DESCRIPTION_MAX = 5000;
+
+export const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
+export type TaskStatus = typeof TASK_STATUSES[number];
+
+export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
+export type TaskPriority = typeof TASK_PRIORITIES[number];
+
+export function isValidTaskStatus(value: unknown): value is TaskStatus {
+  return (
+    typeof value === "string" &&
+    (TASK_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+export function isValidTaskPriority(value: unknown): value is TaskPriority {
+  return (
+    typeof value === "string" &&
+    (TASK_PRIORITIES as readonly string[]).includes(value)
+  );
+}
+
 /**
  * Parses a route param (string) into a positive integer ID.
  * Returns null if invalid.
@@ -341,7 +366,9 @@ export function isValidUsername(value: unknown): value is string {
   return typeof value === "string" && USERNAME_REGEX.test(value);
 }
 export const PROJECT_VISIBILITIES = ["public", "private"] as const;
-export type ProjectVisibility = (typeof PROJECT_VISIBILITIES)[number];
-export function isValidProjectVisibility(value: unknown): value is ProjectVisibility {
+export type ProjectVisibility = typeof PROJECT_VISIBILITIES[number];
+export function isValidProjectVisibility(
+  value: unknown
+): value is ProjectVisibility {
   return value === "public" || value === "private";
 }

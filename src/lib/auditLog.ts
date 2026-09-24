@@ -17,11 +17,14 @@ export type AuditEvent =
   | "professor_status_changed"
   | "project_file_uploaded"
   | "project_file_deleted"
-  | "message_edited"
-  | "message_deleted"
   | "password_change_rate_limited"
   | "password_change_failed"
-  | "password_changed";
+  | "password_changed"
+  | "task_created"
+  | "task_updated"
+  | "task_deleted"
+  | "message_edited"
+  | "message_deleted";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;
