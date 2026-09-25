@@ -36,6 +36,8 @@ import { ChatPanel } from "@/components/projects/ChatPanel";
 import { ApplicationsPanel } from "@/components/projects/ApplicationsPanel";
 import { ProjectFiles } from "@/components/projects/ProjectFiles";
 import { TasksPanel } from "@/components/projects/TasksPanel";
+import { MilestonesPanel } from "@/components/projects/MilestonesPanel";
+import { RecentActivity } from "@/components/projects/RecentActivity";
 import { messages } from "@/lib/messages.fa";
 import { PROJECT_TYPE_LABELS } from "@/lib/validation";
 
@@ -87,7 +89,7 @@ export default function ProjectDetailPage({
   const [applyModal, setApplyModal] = useState(false);
   const [applyMessage, setApplyMessage] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "details" | "chat" | "applications" | "files" | "tasks"
+    "details" | "chat" | "applications" | "files" | "tasks" | "milestones"
   >("details");
 
   const { data, isLoading } = useQuery({
@@ -277,6 +279,9 @@ export default function ProjectDetailPage({
     { key: "details" as const, label: "جزئیات" },
     ...(project.isMember ? [{ key: "tasks" as const, label: "کارها" }] : []),
     ...(project.isMember
+      ? [{ key: "milestones" as const, label: "نقاط پیشرفت" }]
+      : []),
+    ...(project.isMember
       ? [{ key: "chat" as const, label: "گفتگوی تیم" }]
       : []),
     ...(project.isMember
@@ -442,6 +447,9 @@ export default function ProjectDetailPage({
                   </p>
                 </CardBody>
               </Card>
+
+              {/* Recent Activity — فاز ۳ */}
+              {project.isMember && <RecentActivity projectId={project.id} />}
 
               {/* Team Members */}
               <Card>
@@ -720,6 +728,10 @@ export default function ProjectDetailPage({
             isOwner={isOwner}
             currentUserId={user?.id}
           />
+        )}
+
+        {activeTab === "milestones" && project.isMember && (
+          <MilestonesPanel projectId={project.id} isOwner={isOwner} />
         )}
 
         {activeTab === "chat" && project.isMember && (

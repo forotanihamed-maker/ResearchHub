@@ -17,6 +17,7 @@ import {
   isValidTaskPriority,
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
+import { logProjectActivity } from "@/lib/activityLog";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -214,6 +215,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       projectId,
       creatorId: authUser.userId,
       assigneeId,
+    });
+    await logProjectActivity({
+      projectId,
+      actorId: authUser.userId,
+      entityType: "task",
+      entityId: task.id,
+      entityTitle: task.title,
+      type: "task_created",
     });
 
     const [creator] = await db

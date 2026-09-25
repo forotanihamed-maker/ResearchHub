@@ -57,6 +57,23 @@ export function isValidTaskPriority(value: unknown): value is TaskPriority {
   );
 }
 
+// ه.۲ — Milestones (فضای اجرای پروژه، فاز ۲).
+export const MILESTONE_TITLE_MIN = 3;
+export const MILESTONE_TITLE_MAX = 200;
+export const MILESTONE_DESCRIPTION_MAX = 5000;
+
+export const MILESTONE_STATUSES = ["pending", "reached"] as const;
+export type MilestoneStatus = typeof MILESTONE_STATUSES[number];
+
+export function isValidMilestoneStatus(
+  value: unknown
+): value is MilestoneStatus {
+  return (
+    typeof value === "string" &&
+    (MILESTONE_STATUSES as readonly string[]).includes(value)
+  );
+}
+
 /**
  * Parses a route param (string) into a positive integer ID.
  * Returns null if invalid.

@@ -79,6 +79,26 @@ export const taskPriorityEnum = pgEnum("task_priority", [
   "medium",
   "high",
 ]);
+// Milestones — فضای اجرای پروژه، فاز ۲ (ه.۲).
+export const milestoneStatusEnum = pgEnum("milestone_status", [
+  "pending",
+  "reached",
+]);
+// Activity — فضای اجرای پروژه، فاز ۳ (ه.۳).
+export const activityEntityTypeEnum = pgEnum("activity_entity_type", [
+  "task",
+  "milestone",
+]);
+export const activityTypeEnum = pgEnum("activity_type", [
+  "task_created",
+  "task_status_changed",
+  "task_deleted",
+  "task_reassigned",
+  "milestone_created",
+  "milestone_reached",
+  "milestone_reverted",
+  "milestone_deleted",
+]);
 
 // Users
 export const users = pgTable(
@@ -322,6 +342,66 @@ export const tasks = pgTable(
   ]
 );
 
+// Milestones — فضای اجرای پروژه، فاز ۲ (ه.۲). یک وضعیت رسمی از پروژه؛ فقط
+// مالک پروژه می‌تواند ایجاد/ویرایش/حذف کند یا وضعیت را به reached تغییر
+// دهد (تصمیم محصول — برخلاف Task که هر عضو می‌سازد). بدون milestoneId روی
+// tasks و بدون relatedOutput، طبق تصمیم صریح این فاز. بدون فیلد ترتیب
+// جداگانه — ترتیب نمایش از createdAt گرفته می‌شود (ساده‌ترین گزینه‌ی
+// سازگار با Minimum Change؛ اگر بعداً امکان جابه‌جایی دستی لازم شد، یک
+// فیلد order در یک Migration کوچک اضافه می‌شود).
+export const projectMilestones = pgTable(
+  "project_milestones",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    status: milestoneStatusEnum("status").notNull().default("pending"),
+    reachedAt: timestamp("reached_at"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_milestones_project_id_idx").on(table.projectId),
+    index("project_milestones_status_idx").on(table.status),
+  ]
+);
+
+// Activity — فضای اجرای پروژه، فاز ۳ (ه.۳). فقط Task و Milestone (Scope A
+// تأییدشده) — چون این دو چیزی هستند که هیچ تاریخچه‌ای ندارند؛ چت/فایل/عضویت
+// از قبل timestamp خودشان را دارند. entityId عمداً بدون FK است تا حذف
+// Task/Milestone باعث خطا یا یتیم‌شدن این ردیف‌ها نشود؛ entityTitle یک
+// Snapshot مستقل از وضعیت فعلی موجودیت است. detail یک رشته‌ی نمایشی کوچک
+// است (وضعیت جدید یا نام مسئول جدید)، نه metadata/JSON عمومی. فقط سرور
+// می‌نویسد؛ هیچ Endpoint مستقلی برای نوشتن مستقیم توسط کاربر وجود ندارد.
+export const projectActivity = pgTable(
+  "project_activity",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    actorId: integer("actor_id")
+      .notNull()
+      .references(() => users.id),
+    entityType: activityEntityTypeEnum("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    entityTitle: varchar("entity_title", { length: 200 }).notNull(),
+    type: activityTypeEnum("type").notNull(),
+    detail: varchar("detail", { length: 200 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_activity_project_id_idx").on(table.projectId),
+    index("project_activity_created_at_idx").on(table.createdAt),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   ownedProjects: many(projects, { relationName: "projectCreator" }),
@@ -335,6 +415,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   uploadedFiles: many(projectFiles),
   createdTasks: many(tasks, { relationName: "taskCreator" }),
   assignedTasks: many(tasks, { relationName: "taskAssignee" }),
+  createdMilestones: many(projectMilestones),
+  projectActivity: many(projectActivity),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -353,6 +435,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   chatMessages: many(chatMessages),
   files: many(projectFiles),
   tasks: many(tasks),
+  milestones: many(projectMilestones),
+  activity: many(projectActivity),
 }));
 
 export const applicationsRelations = relations(applications, ({ one }) => ({
@@ -423,6 +507,34 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
     relationName: "taskAssignee",
   }),
 }));
+
+export const projectMilestonesRelations = relations(
+  projectMilestones,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [projectMilestones.projectId],
+      references: [projects.id],
+    }),
+    creator: one(users, {
+      fields: [projectMilestones.createdBy],
+      references: [users.id],
+    }),
+  })
+);
+
+export const projectActivityRelations = relations(
+  projectActivity,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [projectActivity.projectId],
+      references: [projects.id],
+    }),
+    actor: one(users, {
+      fields: [projectActivity.actorId],
+      references: [users.id],
+    }),
+  })
+);
 
 export const adminDepartmentsRelations = relations(
   adminDepartments,

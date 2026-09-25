@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { tasks } from "@/db/schema";
+import { tasks, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { getProjectAccess, isProjectParticipant } from "@/lib/projectAccess";
@@ -17,6 +17,14 @@ import {
   isValidTaskPriority,
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
+import { logProjectActivity } from "@/lib/activityLog";
+
+// برچسب فارسی وضعیت — فقط برای متن نمایشی «فعالیت‌های اخیر» (detail).
+const TASK_STATUS_LABEL_FA: Record<string, string> = {
+  todo: "انجام‌نشده",
+  in_progress: "در حال انجام",
+  done: "انجام‌شده",
+};
 
 type Params = { params: Promise<{ id: string; taskId: string }> };
 
@@ -209,6 +217,41 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       actorId: authUser.userId,
     });
 
+    if (updates.status !== undefined && updates.status !== task.status) {
+      await logProjectActivity({
+        projectId,
+        actorId: authUser.userId,
+        entityType: "task",
+        entityId: taskId,
+        entityTitle: updated.title,
+        type: "task_status_changed",
+        detail: TASK_STATUS_LABEL_FA[updated.status] ?? updated.status,
+      });
+    }
+
+    if (
+      updates.assigneeId !== undefined &&
+      updates.assigneeId !== task.assigneeId
+    ) {
+      let assigneeName = "بدون مسئول";
+      if (updates.assigneeId !== null) {
+        const [assignee] = await db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, updates.assigneeId));
+        assigneeName = assignee?.name ?? "بدون مسئول";
+      }
+      await logProjectActivity({
+        projectId,
+        actorId: authUser.userId,
+        entityType: "task",
+        entityId: taskId,
+        entityTitle: updated.title,
+        type: "task_reassigned",
+        detail: assigneeName,
+      });
+    }
+
     return NextResponse.json({ task: updated });
   } catch (error) {
     console.error("Task PATCH error:", error);
@@ -245,7 +288,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }
 
     const [task] = await db
-      .select({ id: tasks.id })
+      .select({ id: tasks.id, title: tasks.title })
       .from(tasks)
       .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)));
     if (!task) {
@@ -258,6 +301,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       taskId,
       projectId,
       actorId: authUser.userId,
+    });
+    await logProjectActivity({
+      projectId,
+      actorId: authUser.userId,
+      entityType: "task",
+      entityId: taskId,
+      entityTitle: task.title,
+      type: "task_deleted",
     });
 
     return NextResponse.json({ success: true });

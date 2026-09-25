@@ -24,7 +24,10 @@ export type AuditEvent =
   | "task_updated"
   | "task_deleted"
   | "message_edited"
-  | "message_deleted";
+  | "message_deleted"
+  | "milestone_created"
+  | "milestone_updated"
+  | "milestone_deleted";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;
