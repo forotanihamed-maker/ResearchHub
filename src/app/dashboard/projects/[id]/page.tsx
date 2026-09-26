@@ -38,6 +38,7 @@ import { ProjectFiles } from "@/components/projects/ProjectFiles";
 import { TasksPanel } from "@/components/projects/TasksPanel";
 import { MilestonesPanel } from "@/components/projects/MilestonesPanel";
 import { RecentActivity } from "@/components/projects/RecentActivity";
+import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { messages } from "@/lib/messages.fa";
 import { PROJECT_TYPE_LABELS } from "@/lib/validation";
 
@@ -328,6 +329,13 @@ export default function ProjectDetailPage({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main content */}
             <div className="lg:col-span-2 space-y-5">
+              {project.isMember && (
+                <ProjectOverviewCard
+                  projectId={project.id}
+                  deadline={project.deadline}
+                />
+              )}
+
               {/* Status + Actions */}
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge

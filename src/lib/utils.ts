@@ -91,3 +91,30 @@ export function statusLabel(status: string): string {
       return status;
   }
 }
+
+// ه.۴ — Overview، فاز ۴. فقط همین سه وضعیت؛ بدون سیستم هشدار پیچیده.
+export function getDeadlineStatus(
+  deadline: string | Date | null | undefined
+): { label: string; tone: "default" | "today" | "overdue" } | null {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  const now = new Date();
+  const startOfDeadlineDay = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate()
+  );
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  const dayDiff = Math.round(
+    (startOfDeadlineDay.getTime() - startOfToday.getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  if (dayDiff < 0) return { label: "مهلت گذشته", tone: "overdue" };
+  if (dayDiff === 0) return { label: "امروز", tone: "today" };
+  return { label: `${dayDiff} روز مانده`, tone: "default" };
+}
