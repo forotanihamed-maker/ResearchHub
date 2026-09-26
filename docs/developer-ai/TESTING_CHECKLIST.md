@@ -1,0 +1,13 @@
+# چک‌لیست تحویل
+- [ ] Typecheck
+- [ ] Build
+- [ ] Lint در صورت امکان
+- [ ] Importها
+- [ ] Runtime
+- [ ] Auth/Authorization
+- [ ] Invalid input
+- [ ] Empty/Error/Loading
+- [ ] RTL/Responsive
+- [ ] Schema/Migration
+- [ ] گزارش فایل‌های تغییرکرده
+- [ ] گزارش تست‌های اجراشده و نشده
