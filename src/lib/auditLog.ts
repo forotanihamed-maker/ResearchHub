@@ -20,14 +20,9 @@ export type AuditEvent =
   | "password_change_rate_limited"
   | "password_change_failed"
   | "password_changed"
-  | "task_created"
-  | "task_updated"
-  | "task_deleted"
-  | "message_edited"
-  | "message_deleted"
-  | "milestone_created"
-  | "milestone_updated"
-  | "milestone_deleted";
+  | "file_upload_rate_limited"
+  | "project_create_rate_limited"
+  | "application_rate_limited";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;

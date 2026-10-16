@@ -1,7 +1,13 @@
 /*src\app\api\projects\[id]\massages\route.ts */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { chatMessages, projectMembers, users, projects, projectFiles } from "@/db/schema";
+import {
+  chatMessages,
+  projectMembers,
+  users,
+  projects,
+  projectFiles,
+} from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -38,10 +44,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .select({ id: projects.id })
       .from(projects)
       .where(
-        and(
-          eq(projects.id, projectId),
-          eq(projects.creatorId, authUser.userId)
-        )
+        and(eq(projects.id, projectId), eq(projects.creatorId, authUser.userId))
       );
 
     // Check whether the user is a project member
@@ -75,15 +78,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
         // مستقیم از داخل حباب پیام دانلود کرد — نه از یک نوار جدا.
         attachmentId: projectFiles.id,
         attachmentFileName: projectFiles.fileName,
-        attachmentFileUrl: projectFiles.fileUrl,
         attachmentFileSize: projectFiles.fileSize,
       })
       .from(chatMessages)
       .innerJoin(users, eq(chatMessages.senderId, users.id))
-      .leftJoin(
-        projectFiles,
-        eq(projectFiles.chatMessageId, chatMessages.id)
-      )
+      .leftJoin(projectFiles, eq(projectFiles.chatMessageId, chatMessages.id))
       .where(eq(chatMessages.projectId, projectId))
       .orderBy(desc(chatMessages.createdAt))
       .limit(MESSAGE_LIMIT);
@@ -91,14 +90,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     // We fetched newest-first to apply the LIMIT; reverse back to
     // chronological order for display.
     const messages = recentMessages.reverse().map((m) => {
-      const { attachmentId, attachmentFileName, attachmentFileUrl, attachmentFileSize, ...rest } = m;
+      const { attachmentId, attachmentFileName, attachmentFileSize, ...rest } =
+        m;
       return {
         ...rest,
         attachment: attachmentId
           ? {
               id: attachmentId,
               fileName: attachmentFileName!,
-              fileUrl: attachmentFileUrl!,
               fileSize: attachmentFileSize!,
             }
           : null,

@@ -4,8 +4,16 @@ import { db } from "@/db";
 import { applications, projects, users, projectMembers } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { auditLog } from "@/lib/auditLog";
 
 type Params = { params: Promise<{ id: string }> };
+
+// Join-request rate limit: per user (across all projects). In-memory and per
+// server instance (see lib/rateLimit.ts), so the real ceiling is
+// "limit × warm instances".
+const APPLICATION_WINDOW_MS = 60 * 60 * 1000;
+const APPLICATION_MAX_PER_WINDOW = 10;
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
@@ -205,6 +213,34 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json(
         { error: "ظرفیت پروژه تکمیل است" },
         { status: 409 }
+      );
+    }
+
+    // Rate limit — placed after authentication, the student-role check, input
+    // validation and every business-rule check (project open, not already
+    // applied / member, capacity), right before the insert. Requests that are
+    // denied or rejected never use up the quota. Synchronous check+increment:
+    // concurrent requests cannot slip past it.
+    const rl = checkRateLimit(
+      `application_create:${authUser.userId}`,
+      APPLICATION_MAX_PER_WINDOW,
+      APPLICATION_WINDOW_MS
+    );
+
+    if (!rl.allowed) {
+      const retryAfterSec = Math.max(
+        1,
+        Math.ceil((rl.resetAt - Date.now()) / 1000)
+      );
+
+      auditLog("application_rate_limited", { userId: authUser.userId });
+
+      return NextResponse.json(
+        {
+          error:
+            "تعداد درخواست‌های عضویت شما در یک ساعت از حد مجاز بیشتر است. لطفاً بعداً دوباره تلاش کنید.",
+        },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
       );
     }
 

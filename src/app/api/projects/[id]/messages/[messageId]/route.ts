@@ -111,7 +111,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .select({
         id: projectFiles.id,
         fileName: projectFiles.fileName,
-        fileUrl: projectFiles.fileUrl,
         fileSize: projectFiles.fileSize,
       })
       .from(projectFiles)

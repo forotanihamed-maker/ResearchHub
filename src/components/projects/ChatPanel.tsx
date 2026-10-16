@@ -24,7 +24,6 @@ import { messages as faMessages } from "@/lib/messages.fa";
 interface Attachment {
   id: number;
   fileName: string;
-  fileUrl: string;
   fileSize: number;
 }
 
@@ -442,9 +441,7 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                       </div>
                     ) : msg.attachment ? (
                       <a
-                        href={msg.attachment.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={`/api/projects/${projectId}/files/${msg.attachment.id}`}
                         download={msg.attachment.fileName}
                         className={cn(
                           "flex items-center gap-2.5 rounded-xl px-3 py-2 transition-colors",

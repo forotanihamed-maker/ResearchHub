@@ -9,6 +9,13 @@ import {
   isValidProjectType, isValidProjectVisibility, TITLE_MIN, TITLE_MAX,
   DESCRIPTION_MIN, DESCRIPTION_MAX,
 } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { auditLog } from "@/lib/auditLog";
+
+// Project creation rate limit: per user. In-memory and per server instance
+// (see lib/rateLimit.ts), so the real ceiling is "limit × warm instances".
+const PROJECT_CREATE_WINDOW_MS = 60 * 60 * 1000;
+const PROJECT_CREATE_MAX_PER_WINDOW = 5;
 
 export async function GET(req: NextRequest) {
   try {
@@ -73,6 +80,15 @@ export async function POST(req: NextRequest) {
     const maxMembers = body.maxMembers === undefined ? 5 : parseMaxMembers(body.maxMembers);
     if (maxMembers === null) return NextResponse.json({ error: "حداکثر تعداد اعضا باید یک عدد صحیح مثبت باشد" }, { status: 400 });
     const deadline = parseDeadline(body.deadline); if (!deadline.ok) return NextResponse.json({ error: "تاریخ مهلت نامعتبر است" }, { status: 400 });
+    // Rate limit — placed after the role check and ALL validation, right before
+    // the insert, so denied/invalid requests don't use up the quota.
+    // Synchronous check+increment: concurrent requests cannot slip past it.
+    const rl = checkRateLimit(`project_create:${authUser.userId}`, PROJECT_CREATE_MAX_PER_WINDOW, PROJECT_CREATE_WINDOW_MS);
+    if (!rl.allowed) {
+      const retryAfterSec = Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000));
+      auditLog("project_create_rate_limited", { userId: authUser.userId });
+      return NextResponse.json({ error: "تعداد پروژه‌هایی که در یک ساعت ساخته‌اید از حد مجاز بیشتر است. لطفاً بعداً دوباره تلاش کنید." }, { status: 429, headers: { "Retry-After": String(retryAfterSec) } });
+    }
     const [project] = await db.insert(projects).values({ title, description, status: "open", type, creatorId: authUser.userId, creatorRole: authUser.role as "professor" | "student", professorId: authUser.role === "professor" ? authUser.userId : null, visibility, inviteToken: visibility === "private" ? crypto.randomBytes(32).toString("hex") : null, maxMembers, deadline: deadline.value }).returning();
     await db.insert(projectMembers).values({ projectId: project.id, userId: authUser.userId });
     return NextResponse.json({ project }, { status: 201 });

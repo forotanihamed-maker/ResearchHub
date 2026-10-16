@@ -16,8 +16,17 @@ import {
 } from "@/lib/validation";
 import { auditLog } from "@/lib/auditLog";
 import { getProjectAccess } from "@/lib/projectAccess";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 type Params = { params: Promise<{ id: string }> };
+
+// Upload rate limit: per USER (not per project), shared by every context
+// (chat / document / deliverable). This limits how OFTEN a user may upload;
+// it is NOT a size limit — the size cap (MAX_FILE_SIZE_BYTES) is checked
+// separately below. Counters are in-memory and per server instance (see
+// lib/rateLimit.ts), so the real ceiling is "limit × warm instances".
+const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
+const UPLOAD_MAX_PER_WINDOW = 10;
 
 export async function GET(req: NextRequest, { params }: Params) {
   try {
@@ -223,6 +232,35 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json(
         { error: "File storage is not configured" },
         { status: 500 }
+      );
+    }
+
+    // Rate limit. Deliberately placed AFTER authentication, project access,
+    // role/status checks, context + file validation and the storage-config
+    // check, so denied or invalid requests never use up the user's quota, and
+    // right BEFORE the first expensive step (the Blob write).
+    // checkRateLimit() checks and increments in one synchronous step, so
+    // concurrent requests cannot slip past it.
+    const rl = checkRateLimit(
+      `upload:${authUser.userId}`,
+      UPLOAD_MAX_PER_WINDOW,
+      UPLOAD_WINDOW_MS
+    );
+
+    if (!rl.allowed) {
+      const retryAfterSec = Math.max(
+        1,
+        Math.ceil((rl.resetAt - Date.now()) / 1000)
+      );
+
+      auditLog("file_upload_rate_limited", {
+        userId: authUser.userId,
+        projectId,
+      });
+
+      return NextResponse.json(
+        { error: "Too many uploads. Please wait a few minutes and try again." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
       );
     }
 

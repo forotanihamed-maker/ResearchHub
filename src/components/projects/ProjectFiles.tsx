@@ -11,7 +11,6 @@ import { FileText, Upload, Download, Trash2, Paperclip } from "lucide-react";
 interface ProjectFile {
   id: number;
   fileName: string;
-  fileUrl: string;
   fileSize: number;
   context: "chat" | "document" | "deliverable";
   uploaderId: number;
@@ -166,9 +165,7 @@ export function ProjectFiles({
                 </p>
               </div>
               <a
-                href={file.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`/api/projects/${projectId}/files/${file.id}`}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
                 title="دانلود"
               >

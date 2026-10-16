@@ -1,6 +1,6 @@
 /*src\app\api\projects\[id]\files\[fileId]\route.ts */
 import { NextRequest, NextResponse } from "next/server";
-import { del } from "@vercel/blob";
+import { del, get } from "@vercel/blob";
 import { db } from "@/db";
 import { projectFiles } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -10,6 +10,75 @@ import { getProjectAccess } from "@/lib/projectAccess";
 import { auditLog } from "@/lib/auditLog";
 
 type Params = { params: Promise<{ id: string; fileId: string }> };
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  try {
+    const authUser = await getAuthUser();
+    if (!authUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id, fileId } = await params;
+    const projectId = parseId(id);
+    const parsedFileId = parseId(fileId);
+
+    if (projectId === null || parsedFileId === null) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+
+    const { project, isMember } = await getProjectAccess(
+      projectId,
+      authUser.userId
+    );
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    if (!isMember) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const [file] = await db
+      .select()
+      .from(projectFiles)
+      .where(
+        and(
+          eq(projectFiles.id, parsedFileId),
+          eq(projectFiles.projectId, projectId)
+        )
+      );
+
+    if (!file) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    const result = await get(file.fileUrl, { access: "private" });
+
+    if (!result || result.statusCode !== 200) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    const encodedFileName = encodeURIComponent(file.fileName);
+
+    return new NextResponse(result.stream, {
+      status: 200,
+      headers: {
+        "Content-Type": result.blob.contentType || "application/octet-stream",
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodedFileName}`,
+        "Content-Length": String(result.blob.size ?? file.fileSize),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Project file GET error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
