@@ -6,7 +6,6 @@ import React, {
   useContext,
   useState,
   useCallback,
-  useEffect,
 } from "react";
 import { usePathname } from "next/navigation";
 
@@ -27,10 +26,17 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((v) => !v), []);
 
-  // Close the mobile drawer automatically whenever the route changes
-  useEffect(() => {
+  // Close the mobile drawer automatically whenever the route changes.
+  // This is React's documented "adjust state while rendering when a value
+  // changes" pattern: the update is guarded by the comparison, so it runs once
+  // per navigation, closes the drawer in the same render pass as the new
+  // route, and avoids calling setState inside an effect
+  // (react-hooks/set-state-in-effect).
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
     setIsOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <SidebarContext.Provider value={{ isOpen, open, close, toggle }}>

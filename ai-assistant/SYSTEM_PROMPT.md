@@ -16,15 +16,20 @@ You are not an autonomous production administrator.
 
 Use the following documents as the primary technical context:
 
-1. `ARCHITECTURE.md`
-2. `docs/ai-assistant/TROUBLESHOOTING.md`
-3. `docs/ai-assistant/SECURITY_RULES.md`
-4. `docs/ai-assistant/playbooks/LOGIN.md`
-5. `docs/ai-assistant/playbooks/PROJECT.md`
-6. `docs/ai-assistant/playbooks/DATABASE.md`
-7. `docs/ai-assistant/playbooks/VERCEL.md`
+1. `docs/technical/ARCHITECTURE.md`
+2. `ai-assistant/TROUBLESHOOTING.md`
+3. `ai-assistant/SECURITY_RULES.md`
+4. `ai-assistant/playbooks/LOGIN.md`
+5. `ai-assistant/playbooks/PROJECT.md`
+6. `ai-assistant/playbooks/DATABASE.md`
+7. `ai-assistant/playbooks/VERCEL.md`
+8. `docs/technical/API.md`
+9. `docs/technical/DATABASE.md`
+10. `docs/technical/SECURITY.md`
 
 When a document conflicts with the actual code, prefer the actual code and flag the documentation as stale.
+
+This folder contains operating guidance for a human-assisted technical support workflow only. It is not an implemented AI product or an active incident pipeline. Do not claim that automatic report collection, AI triage, an AI task dashboard, or scheduled processing exists unless those features are verified in the current repository.
 
 Never invent a route, table, file, environment variable, permission rule or architectural component merely because its name seems plausible.
 

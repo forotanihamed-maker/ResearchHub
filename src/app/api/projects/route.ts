@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/db";
-import { projects, users, applications, projectMembers } from "@/db/schema";
+import { projects, users, applications, projectMembers, projectStatusEnum } from "@/db/schema";
 import { eq, inArray, desc, and, or, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
 import {
   sanitizeTitle, sanitizeDescription, parseMaxMembers, parseDeadline,
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     const search = sp.get("search");
     const chatOnly = sp.get("chat") === "true";
     const myOnly = sp.get("my") === "true";
-    const conditions: any[] = [];
+    const conditions: SQL[] = [];
 
     if (myOnly) {
       conditions.push(eq(projects.creatorId, authUser.userId));
@@ -39,12 +40,13 @@ export async function GET(req: NextRequest) {
     } else if (authUser.role === "student") {
       const memberships = await db.select({ projectId: projectMembers.projectId }).from(projectMembers).where(eq(projectMembers.userId, authUser.userId));
       const ids = memberships.map(r => r.projectId);
-      conditions.push(ids.length ? or(and(eq(projects.visibility, "public"), eq(projects.status, "open")), inArray(projects.id, ids)) : and(eq(projects.visibility, "public"), eq(projects.status, "open")));
+      const studentCondition = ids.length ? or(and(eq(projects.visibility, "public"), eq(projects.status, "open")), inArray(projects.id, ids)) : and(eq(projects.visibility, "public"), eq(projects.status, "open"));
+      if (studentCondition) conditions.push(studentCondition);
     } else if (authUser.role === "professor") {
       conditions.push(eq(projects.creatorId, authUser.userId));
     }
 
-    if (status && status !== "all" && ["open","in_progress","completed"].includes(status)) conditions.push(eq(projects.status, status as any));
+    if (status && status !== "all" && projectStatusEnum.enumValues.includes(status as (typeof projectStatusEnum.enumValues)[number])) conditions.push(eq(projects.status, status as (typeof projectStatusEnum.enumValues)[number]));
     const whereClause = conditions.length ? and(...conditions) : undefined;
     const rows = await db.select({
       id: projects.id, title: projects.title, description: projects.description, status: projects.status, type: projects.type,

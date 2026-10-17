@@ -148,7 +148,7 @@ export function ApplicationsPanel({ projectId }: { projectId: number }) {
 
           {app.message && (
             <div className="bg-slate-50 rounded-lg p-3 mb-3">
-              <p className="text-xs text-slate-600 italic">"{app.message}"</p>
+              <p className="text-xs text-slate-600 italic">&quot;{app.message}&quot;</p>
             </div>
           )}
 

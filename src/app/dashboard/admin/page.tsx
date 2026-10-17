@@ -86,40 +86,33 @@ export default function AdminPage() {
   const [actionId, setActionId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [
-        statsRes,
-        departmentsRes,
-        professorsRes,
-        projectsRes,
-        overviewRes,
-      ] = await Promise.all([
-        fetch("/api/admin/stats"),
-        fetch("/api/admin/departments"),
-        fetch("/api/admin/professors"),
-        fetch("/api/admin/projects"),
-        fetch("/api/admin/faculty-overview"),
-      ]);
+  const fetchDashboardData = async () => {
+    const [
+      statsRes,
+      departmentsRes,
+      professorsRes,
+      projectsRes,
+      overviewRes,
+    ] = await Promise.all([
+      fetch("/api/admin/stats"),
+      fetch("/api/admin/departments"),
+      fetch("/api/admin/professors"),
+      fetch("/api/admin/projects"),
+      fetch("/api/admin/faculty-overview"),
+    ]);
 
-      if (
-        !statsRes.ok ||
-        !departmentsRes.ok ||
-        !professorsRes.ok ||
-        !projectsRes.ok ||
-        !overviewRes.ok
-      ) {
-        throw new Error();
-      }
+    if (
+      !statsRes.ok ||
+      !departmentsRes.ok ||
+      !professorsRes.ok ||
+      !projectsRes.ok ||
+      !overviewRes.ok
+    ) {
+      throw new Error();
+    }
 
-      const [
-        statsData,
-        departmentsData,
-        professorsData,
-        projectsData,
-        overviewData,
-      ] = await Promise.all([
+    const [statsData, departmentsData, professorsData, projectsData, overviewData] =
+      await Promise.all([
         statsRes.json(),
         departmentsRes.json(),
         professorsRes.json(),
@@ -127,12 +120,28 @@ export default function AdminPage() {
         overviewRes.json(),
       ]);
 
-      setStats(statsData);
-      setDepartments(departmentsData.selected ?? []);
-      setProfessors(professorsData.professors ?? []);
-      setProjects(projectsData.projects ?? []);
-      setOverview(overviewData ?? emptyOverview);
-      setError("");
+    return {
+      statsData,
+      departments: departmentsData.selected ?? [],
+      professors: professorsData.professors ?? [],
+      projects: projectsData.projects ?? [],
+      overview: overviewData ?? emptyOverview,
+    };
+  };
+
+  const applyDashboardData = (data: Awaited<ReturnType<typeof fetchDashboardData>>) => {
+    setStats(data.statsData);
+    setDepartments(data.departments);
+    setProfessors(data.professors);
+    setProjects(data.projects);
+    setOverview(data.overview);
+    setError("");
+  };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      applyDashboardData(await fetchDashboardData());
     } catch {
       setError(
         "دریافت اطلاعات مدیریت ناموفق بود. اتصال دیتابیس و گروه‌های آموزشی تحت مدیریت خود را بررسی کنید."
@@ -143,7 +152,27 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+
+    const initialLoad = async () => {
+      try {
+        const data = await fetchDashboardData();
+        if (!cancelled) applyDashboardData(data);
+      } catch {
+        if (!cancelled) {
+          setError(
+            "دریافت اطلاعات مدیریت ناموفق بود. اتصال دیتابیس و گروه‌های آموزشی تحت مدیریت خود را بررسی کنید."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void initialLoad();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const pending = useMemo(

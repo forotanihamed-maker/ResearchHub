@@ -24,6 +24,7 @@ export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [previousUserId, setPreviousUserId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -50,20 +51,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user?.role === "admin") {
       router.replace("/dashboard/admin");
-      return;
     }
-    if (user) {
-      setForm({
-        name: user.name || "",
-        bio: user.bio || "",
-        department: user.department || "",
-        university: user.university || "",
-        username: user.username || "",
-      });
-      setLanguages(user.programmingLanguages || []);
-      setInterests(user.interests || []);
-    }
-  }, [user, router]);
+  }, [user?.role, router]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -158,6 +147,25 @@ export default function ProfilePage() {
   const removeInterest = (value: string) => {
     setInterests((prev) => prev.filter((i) => i !== value));
   };
+
+  if (!user && previousUserId !== null) {
+    setPreviousUserId(null);
+  }
+
+  if (user && user.id !== previousUserId) {
+    setPreviousUserId(user.id);
+
+    setForm({
+      name: user.name || "",
+      bio: user.bio || "",
+      department: user.department || "",
+      university: user.university || "",
+      username: user.username || "",
+    });
+
+    setLanguages(user.programmingLanguages || []);
+    setInterests(user.interests || []);
+  }
 
   if (!user) return null;
 

@@ -716,7 +716,7 @@ export default function ProjectDetailPage({
                     </Badge>
                     {myApp.message && (
                       <p className="text-xs text-slate-600 mt-2 bg-slate-50 p-3 rounded-lg">
-                        "{myApp.message}"
+                        &quot;{myApp.message}&quot;
                       </p>
                     )}
                     <p className="text-xs text-slate-400 mt-2">

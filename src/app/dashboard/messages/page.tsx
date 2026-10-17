@@ -1,7 +1,7 @@
 /*src\app\dashboard\masssages\page.tsx */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
@@ -39,13 +39,8 @@ export default function MessagesPage() {
 
   const projects = memberProjects ?? [];
 
-  useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
-      setSelectedProjectId(projects[0].id);
-    }
-  }, [projects, selectedProjectId]);
-
-  const selected = projects.find((p) => p.id === selectedProjectId);
+  const activeProjectId = selectedProjectId ?? projects[0]?.id ?? null;
+  const selected = projects.find((p) => p.id === activeProjectId);
 
   return (
     <div>
@@ -84,7 +79,7 @@ export default function MessagesPage() {
                     onClick={() => setSelectedProjectId(project.id)}
                     className={cn(
                       "w-full text-start px-4 py-3 transition-colors",
-                      selectedProjectId === project.id
+                      activeProjectId === project.id
                         ? "bg-indigo-50 border-e-2 border-e-indigo-600"
                         : "hover:bg-slate-50"
                     )}
@@ -106,8 +101,8 @@ export default function MessagesPage() {
 
             {/* Chat panel */}
             <div className="lg:col-span-3">
-              {selectedProjectId ? (
-                <ChatPanel projectId={selectedProjectId} />
+              {activeProjectId ? (
+                <ChatPanel projectId={activeProjectId} />
               ) : (
                 <div className="bg-white rounded-xl border border-slate-200 h-full flex items-center justify-center">
                   <div className="text-center text-slate-400">
