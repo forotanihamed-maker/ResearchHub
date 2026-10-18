@@ -23,14 +23,14 @@ export type AuditEvent =
   | "file_upload_rate_limited"
   | "project_create_rate_limited"
   | "application_rate_limited"
-  | "message_edited"
-  | "message_deleted"
-  | "milestone_updated"
-  | "milestone_deleted"
-  | "milestone_created"
+  | "task_created"
   | "task_updated"
   | "task_deleted"
-  | "task_created";
+  | "milestone_created"
+  | "milestone_updated"
+  | "milestone_deleted"
+  | "message_edited"
+  | "message_deleted";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;
