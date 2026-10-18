@@ -10,12 +10,13 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  check,
   boolean,
   numeric,
   real,
   jsonb,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const departmentEnum = pgEnum("department", [
@@ -495,7 +496,14 @@ export const aiTasks = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [index("ai_tasks_status_severity_idx").on(table.status, table.severity)]
+  (table) => [
+    index("ai_tasks_status_severity_idx").on(table.status, table.severity),
+    // confidence is a 0..1 score (or NULL); enforced in the DB, not only in zod.
+    check(
+      "ai_tasks_confidence_range",
+      sql`${table.confidence} IS NULL OR (${table.confidence} >= 0 AND ${table.confidence} <= 1)`
+    ),
+  ]
 );
 
 // منبع یک تسک: گزارش یا خطا. sourceId عمداً بدون FK است (چندریخت: بسته به
@@ -511,13 +519,13 @@ export const aiTaskSources = pgTable(
     sourceId: integer("source_id").notNull(),
   },
   (table) => [
-    uniqueIndex("ai_task_sources_task_source_uidx").on(
-      table.taskId,
+    // هر منبع (گزارش یا خطا) حداکثر به یک تسک وصل می‌شود؛ این یکتایی همان
+    // تضمین idempotency مرحله ۴ است و جست‌وجوی «آیا قبلاً تسک شده؟» را هم پوشش می‌دهد.
+    uniqueIndex("ai_task_sources_source_uidx").on(
       table.sourceType,
       table.sourceId
     ),
-    // جست‌وجوی «آیا این منبع قبلاً تسک شده؟» (idempotency در مرحله ۴).
-    index("ai_task_sources_source_idx").on(table.sourceType, table.sourceId),
+    index("ai_task_sources_task_id_idx").on(table.taskId),
   ]
 );
 

@@ -1,0 +1,24 @@
+--- /tmp/mig.before.sql	2026-10-18 09:23:51.124700267 +0330
++++ rh-verify/migrations/20261017_ai_assistant_phase1_data_model.sql	2026-10-18 09:23:59.619092933 +0330
+@@ -56,7 +56,8 @@
+   suggested_fix text,
+   confidence real,
+   created_at timestamp NOT NULL DEFAULT now(),
+-  updated_at timestamp NOT NULL DEFAULT now()
++  updated_at timestamp NOT NULL DEFAULT now(),
++  CONSTRAINT ai_tasks_confidence_range CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1))
+ );
+ CREATE INDEX IF NOT EXISTS ai_tasks_status_severity_idx ON ai_tasks(status, severity);
+ 
+@@ -66,8 +67,9 @@
+   source_type ai_source_type NOT NULL,
+   source_id integer NOT NULL
+ );
+-CREATE UNIQUE INDEX IF NOT EXISTS ai_task_sources_task_source_uidx ON ai_task_sources(task_id, source_type, source_id);
+-CREATE INDEX IF NOT EXISTS ai_task_sources_source_idx ON ai_task_sources(source_type, source_id);
++-- هر منبع حداکثر به یک تسک وصل می‌شود (idempotency مرحله ۴).
++CREATE UNIQUE INDEX IF NOT EXISTS ai_task_sources_source_uidx ON ai_task_sources(source_type, source_id);
++CREATE INDEX IF NOT EXISTS ai_task_sources_task_id_idx ON ai_task_sources(task_id);
+ 
+ CREATE TABLE IF NOT EXISTS ai_analysis_runs (
+   id SERIAL PRIMARY KEY,

@@ -43,6 +43,12 @@ const typeMap: Record<string,string> = { PgSerial:"integer", PgInteger:"integer"
       const uniq = (i as any).config.unique === true;
       if (uniq !== /UNIQUE/.test(found.indexdef)) { console.log("UNIQUE MISMATCH", n); problems++; }
     }
+    // check constraints
+    const ck = await pool.query(`select conname, pg_get_constraintdef(oid) def from pg_constraint where contype='c' and conrelid=$1::regclass`, [cfg.name]);
+    for (const c of (cfg as any).checks ?? []) {
+      if (!ck.rows.find((x:any)=>x.conname===c.name)) { console.log("MISSING CHECK", cfg.name, c.name); problems++; }
+    }
+    for (const r of ck.rows) if (!((cfg as any).checks ?? []).find((c:any)=>c.name===r.conname)) { console.log("EXTRA DB CHECK", cfg.name, r.conname); problems++; }
     // foreign keys
     const fk = await pool.query(`select kcu.column_name, ccu.table_name ref_table, rc.delete_rule from information_schema.table_constraints tc join information_schema.key_column_usage kcu on tc.constraint_name=kcu.constraint_name join information_schema.referential_constraints rc on rc.constraint_name=tc.constraint_name join information_schema.constraint_column_usage ccu on ccu.constraint_name=rc.constraint_name where tc.constraint_type='FOREIGN KEY' and tc.table_name=$1`, [cfg.name]);
     for (const f of cfg.foreignKeys) {
@@ -51,7 +57,7 @@ const typeMap: Record<string,string> = { PgSerial:"integer", PgInteger:"integer"
       const got = fk.rows.find((x:any)=>x.column_name===col);
       if (!got || got.ref_table!==refTable || got.delete_rule.toUpperCase()!==want.replace("_"," ")) { console.log("FK MISMATCH", cfg.name, col, {want, got}); problems++; }
     }
-    console.log(`checked ${cfg.name}: ${cfg.columns.length} cols, ${cfg.indexes.length} idx, ${cfg.foreignKeys.length} fk`);
+    console.log(`checked ${cfg.name}: ${cfg.columns.length} cols, ${cfg.indexes.length} idx, ${cfg.foreignKeys.length} fk, ${((cfg as any).checks ?? []).length} check`);
   }
   // enums
   const en = await pool.query(`select t.typname, array_agg(e.enumlabel::text order by e.enumsortorder) labels from pg_type t join pg_enum e on e.enumtypid=t.oid group by 1`);

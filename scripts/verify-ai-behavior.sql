@@ -19,9 +19,9 @@ INSERT INTO error_events(source,route,message,fingerprint) VALUES ('server','/ap
 \echo T4 task source unique + cascade:
 INSERT INTO ai_task_sources(task_id,source_type,source_id) SELECT id,'report',1 FROM ai_tasks LIMIT 1;
 SAVEPOINT s; INSERT INTO ai_task_sources(task_id,source_type,source_id) SELECT id,'report',1 FROM ai_tasks LIMIT 1; ROLLBACK TO s;
-\echo T4b same source attached to a SECOND task (allowed by this schema?):
+\echo T4b same source attached to a SECOND task (must be REJECTED):
 INSERT INTO ai_tasks(title,summary,severity) VALUES ('t2','s','low');
-INSERT INTO ai_task_sources(task_id,source_type,source_id) SELECT max(id),'report',1 FROM ai_tasks RETURNING task_id;
+SAVEPOINT s; INSERT INTO ai_task_sources(task_id,source_type,source_id) SELECT max(id),'report',1 FROM ai_tasks; ROLLBACK TO s;
 \echo T5 run keeps cost when task deleted (set null) and tool calls cascade with run:
 INSERT INTO ai_analysis_runs(task_id,model,cost_usd) SELECT min(id),'m',0.001234 FROM ai_tasks RETURNING id \gset r_
 INSERT INTO ai_tool_calls(run_id,tool_name,args_hash,allowed) VALUES (:r_id,'submit_triage','h',true);
@@ -38,6 +38,8 @@ SELECT 'pending approved_by null =', approved_by IS NULL FROM ai_pending_actions
 \echo T7 budget month unique:
 INSERT INTO ai_budget(month,monthly_cap_usd) VALUES ('2026-10',10);
 SAVEPOINT s; INSERT INTO ai_budget(month,monthly_cap_usd) VALUES ('2026-10',20); ROLLBACK TO s;
-\echo T8 out-of-range confidence accepted? (no CHECK in migration):
-INSERT INTO ai_tasks(title,summary,severity,confidence) VALUES ('c','s','low',7.5) RETURNING confidence;
+\echo T8 confidence range: 7.5 and -0.1 must be REJECTED, 0.8 / 0 / 1 / NULL accepted:
+SAVEPOINT s; INSERT INTO ai_tasks(title,summary,severity,confidence) VALUES ('c','s','low',7.5); ROLLBACK TO s;
+SAVEPOINT s; INSERT INTO ai_tasks(title,summary,severity,confidence) VALUES ('c','s','low',-0.1); ROLLBACK TO s;
+INSERT INTO ai_tasks(title,summary,severity,confidence) VALUES ('c','s','low',0.8),('c','s','low',0),('c','s','low',1),('c','s','low',NULL);
 ROLLBACK;
