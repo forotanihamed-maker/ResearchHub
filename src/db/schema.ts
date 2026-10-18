@@ -9,6 +9,10 @@ import {
   integer,
   primaryKey,
   index,
+  boolean,
+  numeric,
+  jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -98,6 +102,33 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "milestone_reached",
   "milestone_reverted",
   "milestone_deleted",
+]);
+
+
+// AI service assistant — persisted reports, errors, triage tasks and audit metadata.
+export const errorSourceEnum = pgEnum("error_source", ["server", "client"]);
+export const aiTaskSeverityEnum = pgEnum("ai_task_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+export const aiTaskStatusEnum = pgEnum("ai_task_status", [
+  "open",
+  "in_progress",
+  "resolved",
+  "dismissed",
+]);
+export const aiTaskSourceTypeEnum = pgEnum("ai_task_source_type", [
+  "report",
+  "error",
+]);
+export const aiPendingActionStatusEnum = pgEnum("ai_pending_action_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "expired",
+  "executed",
 ]);
 
 // Users
@@ -402,6 +433,165 @@ export const projectActivity = pgTable(
   ]
 );
 
+// AI service assistant — user-submitted issue reports. Free text is data, not instructions.
+export const issueReports = pgTable(
+  "issue_reports",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    pagePath: varchar("page_path", { length: 512 }).notNull(),
+    description: text("description").notNull(),
+    // Kept as varchar until the supported category vocabulary is explicitly defined.
+    category: varchar("category", { length: 80 }).notNull(),
+    // Kept as varchar to avoid inventing report workflow states not specified in the plan.
+    status: varchar("status", { length: 40 }).notNull().default("new"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("issue_reports_user_id_idx").on(table.userId),
+    index("issue_reports_status_idx").on(table.status),
+    index("issue_reports_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// Captured error metadata only: never store request bodies, cookies or headers here.
+export const errorEvents = pgTable(
+  "error_events",
+  {
+    id: serial("id").primaryKey(),
+    source: errorSourceEnum("source").notNull(),
+    route: varchar("route", { length: 512 }).notNull(),
+    message: text("message").notNull(),
+    stackHash: varchar("stack_hash", { length: 128 }).notNull(),
+    fingerprint: varchar("fingerprint", { length: 128 }).notNull().unique(),
+    count: integer("count").notNull().default(1),
+    firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("error_events_source_idx").on(table.source),
+    index("error_events_route_idx").on(table.route),
+    index("error_events_last_seen_at_idx").on(table.lastSeenAt),
+  ]
+);
+
+export const aiTasks = pgTable(
+  "ai_tasks",
+  {
+    id: serial("id").primaryKey(),
+    title: varchar("title", { length: 255 }).notNull(),
+    summary: text("summary").notNull(),
+    severity: aiTaskSeverityEnum("severity").notNull(),
+    category: varchar("category", { length: 80 }).notNull(),
+    status: aiTaskStatusEnum("status").notNull().default("open"),
+    suggestedFix: text("suggested_fix"),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("ai_tasks_severity_idx").on(table.severity),
+    index("ai_tasks_status_idx").on(table.status),
+    index("ai_tasks_category_idx").on(table.category),
+    index("ai_tasks_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// sourceId is polymorphic (report or error), so it intentionally has no FK.
+export const aiTaskSources = pgTable(
+  "ai_task_sources",
+  {
+    id: serial("id").primaryKey(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => aiTasks.id, { onDelete: "cascade" }),
+    sourceType: aiTaskSourceTypeEnum("source_type").notNull(),
+    sourceId: integer("source_id").notNull(),
+  },
+  (table) => [
+    index("ai_task_sources_task_id_idx").on(table.taskId),
+    index("ai_task_sources_source_lookup_idx").on(table.sourceType, table.sourceId),
+    uniqueIndex("ai_task_sources_unique_source_idx").on(
+      table.taskId,
+      table.sourceType,
+      table.sourceId
+    ),
+  ]
+);
+
+export const aiAnalysisRuns = pgTable(
+  "ai_analysis_runs",
+  {
+    id: serial("id").primaryKey(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => aiTasks.id, { onDelete: "cascade" }),
+    model: varchar("model", { length: 160 }).notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("ai_analysis_runs_task_id_idx").on(table.taskId),
+    index("ai_analysis_runs_created_at_idx").on(table.createdAt),
+  ]
+);
+
+export const aiBudget = pgTable(
+  "ai_budget",
+  {
+    id: serial("id").primaryKey(),
+    month: varchar("month", { length: 7 }).notNull(),
+    capUsd: numeric("cap_usd", { precision: 12, scale: 4 }).notNull(),
+    consumedUsd: numeric("consumed_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    killSwitch: boolean("kill_switch").notNull().default(false),
+  },
+  (table) => [uniqueIndex("ai_budget_month_idx").on(table.month)]
+);
+
+export const aiToolCalls = pgTable(
+  "ai_tool_calls",
+  {
+    id: serial("id").primaryKey(),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => aiAnalysisRuns.id, { onDelete: "cascade" }),
+    toolName: varchar("tool_name", { length: 160 }).notNull(),
+    argsHash: varchar("args_hash", { length: 128 }).notNull(),
+    allowed: boolean("allowed").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("ai_tool_calls_run_id_idx").on(table.runId),
+    index("ai_tool_calls_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// Phase 1 adds storage only; no approval/execution logic is introduced here.
+export const aiPendingActions = pgTable(
+  "ai_pending_actions",
+  {
+    id: serial("id").primaryKey(),
+    actionType: varchar("action_type", { length: 160 }).notNull(),
+    paramsJson: jsonb("params_json").notNull(),
+    paramsHash: varchar("params_hash", { length: 128 }).notNull(),
+    status: aiPendingActionStatusEnum("status").notNull().default("pending"),
+    expiresAt: timestamp("expires_at").notNull(),
+    approvedBy: integer("approved_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("ai_pending_actions_status_idx").on(table.status),
+    index("ai_pending_actions_expires_at_idx").on(table.expiresAt),
+    index("ai_pending_actions_approved_by_idx").on(table.approvedBy),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   ownedProjects: many(projects, { relationName: "projectCreator" }),
@@ -417,6 +607,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   assignedTasks: many(tasks, { relationName: "taskAssignee" }),
   createdMilestones: many(projectMilestones),
   projectActivity: many(projectActivity),
+  issueReports: many(issueReports),
+  approvedAiPendingActions: many(aiPendingActions),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -558,3 +750,48 @@ export const directMessagesRelations = relations(directMessages, ({ one }) => ({
     relationName: "recipient",
   }),
 }));
+
+
+export const issueReportsRelations = relations(issueReports, ({ one }) => ({
+  user: one(users, {
+    fields: [issueReports.userId],
+    references: [users.id],
+  }),
+}));
+
+export const aiTasksRelations = relations(aiTasks, ({ many }) => ({
+  sources: many(aiTaskSources),
+  analysisRuns: many(aiAnalysisRuns),
+}));
+
+export const aiTaskSourcesRelations = relations(aiTaskSources, ({ one }) => ({
+  task: one(aiTasks, {
+    fields: [aiTaskSources.taskId],
+    references: [aiTasks.id],
+  }),
+}));
+
+export const aiAnalysisRunsRelations = relations(aiAnalysisRuns, ({ one, many }) => ({
+  task: one(aiTasks, {
+    fields: [aiAnalysisRuns.taskId],
+    references: [aiTasks.id],
+  }),
+  toolCalls: many(aiToolCalls),
+}));
+
+export const aiToolCallsRelations = relations(aiToolCalls, ({ one }) => ({
+  run: one(aiAnalysisRuns, {
+    fields: [aiToolCalls.runId],
+    references: [aiAnalysisRuns.id],
+  }),
+}));
+
+export const aiPendingActionsRelations = relations(
+  aiPendingActions,
+  ({ one }) => ({
+    approver: one(users, {
+      fields: [aiPendingActions.approvedBy],
+      references: [users.id],
+    }),
+  })
+);
