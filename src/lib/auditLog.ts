@@ -32,7 +32,9 @@ export type AuditEvent =
   | "message_edited"
   | "message_deleted"
   | "dev_panel_access"
-  | "dev_panel_denied";
+  | "dev_panel_denied"
+  | "issue_report_rate_limited"
+  | "browser_error_rate_limited";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;

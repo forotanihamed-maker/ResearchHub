@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
+import { ReportIssueButton } from "@/components/ReportIssueButton";
 import {
   LayoutDashboard,
   FolderKanban,
