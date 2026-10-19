@@ -20,13 +20,16 @@ import {
   BookOpen,
   X,
 } from "lucide-react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Bot } from "lucide-react";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
   roles?: ("professor" | "student" | "admin")[];
+  // Shown only when GET /api/auth/me says devPanel === true (UX only; the
+  // pages themselves are guarded on the server).
+  devOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -72,6 +75,12 @@ const navItems: NavItem[] = [
     icon: ShieldCheck,
     roles: ["admin"],
   },
+  {
+    label: "دستیار توسعه‌دهنده",
+    href: "/dashboard/dev/tasks",
+    icon: Bot,
+    devOnly: true,
+  },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -85,9 +94,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
 
-  const filteredNav = navItems.filter(
-    (item) => !item.roles || (user && item.roles.includes(user.role))
-  );
+  const filteredNav = navItems.filter((item) => {
+    if (item.devOnly) return user?.devPanel === true;
+    return !item.roles || (user && item.roles.includes(user.role));
+  });
 
   return (
     <>

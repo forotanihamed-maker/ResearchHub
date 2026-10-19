@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { isDevAdminEmail } from "@/lib/devAccess";
 import {
   sanitizeName,
   isValidDepartment,
@@ -57,7 +58,11 @@ export async function GET() {
       return jsonResponse({ error: "کاربر یافت نشد" }, 404);
     }
 
-    return jsonResponse({ user });
+    // UX hint only (shows the sidebar link). Every /dashboard/dev page and
+    // /api/dev route re-checks on the server.
+    return jsonResponse({
+      user: { ...user, devPanel: isDevAdminEmail(user.email) },
+    });
   } catch (error) {
     console.error("GET /api/auth/me error:", error);
 

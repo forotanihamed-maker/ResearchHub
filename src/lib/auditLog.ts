@@ -30,7 +30,9 @@ export type AuditEvent =
   | "milestone_updated"
   | "milestone_deleted"
   | "message_edited"
-  | "message_deleted";
+  | "message_deleted"
+  | "dev_panel_access"
+  | "dev_panel_denied";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;

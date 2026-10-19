@@ -23,6 +23,8 @@ export interface User {
   programmingLanguages?: string[];
   username?: string | null;
   createdAt?: string;
+  // UX hint from /api/auth/me; the server re-checks on every dev request.
+  devPanel?: boolean;
 }
 
 interface AuthContextType {
