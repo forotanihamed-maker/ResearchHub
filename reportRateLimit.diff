@@ -1,0 +1,35 @@
+--- /home/claude/s5in/changed/ResearchHub-Stage5-files/src/lib/reportRateLimit.ts	2026-10-19 10:35:47.000000000 +0330
++++ src/lib/reportRateLimit.ts	2026-10-19 14:59:15.717452961 +0330
+@@ -21,19 +21,28 @@
+       sql`SELECT pg_advisory_xact_lock(hashtext(${`issue_reports:${input.userId}`}))`
+     );
+ 
+-    const cutoff = new Date(Date.now() - REPORT_WINDOW_MS);
++    // The window is evaluated by the database, against the same clock that
++    // stamps created_at (DEFAULT now() into a timestamp-without-time-zone
++    // column => the session's local wall time => localtimestamp). Passing a
++    // JavaScript Date would shift the window by any Node/DB time-zone gap.
+     const result = await tx.execute(sql`
+-      SELECT count(*)::int AS count
++      SELECT
++        count(*)::int AS count,
++        ceil(extract(epoch from (
++          (array_agg(created_at ORDER BY created_at ASC))[greatest(count(*) - ${REPORT_MAX_PER_HOUR - 1}, 1)]
++          + make_interval(secs => ${REPORT_WINDOW_MS / 1000}) - localtimestamp
++        )))::int AS retry_after
+       FROM issue_reports
+       WHERE user_id = ${input.userId}
+-        AND created_at >= ${cutoff}
++        AND created_at >= localtimestamp - make_interval(secs => ${REPORT_WINDOW_MS / 1000})
+     `);
+     const count = Number(result.rows[0]?.count ?? 0);
+ 
+     if (count >= REPORT_MAX_PER_HOUR) {
++      const wait = Number(result.rows[0]?.retry_after ?? REPORT_WINDOW_MS / 1000);
+       return {
+         allowed: false,
+-        retryAfterSeconds: REPORT_WINDOW_MS / 1000,
++        retryAfterSeconds: Math.min(REPORT_WINDOW_MS / 1000, Math.max(1, wait)),
+       };
+     }
+ 

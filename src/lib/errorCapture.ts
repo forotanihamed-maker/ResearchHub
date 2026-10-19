@@ -6,6 +6,8 @@ const MAX_MESSAGE_LENGTH = 2000;
 const MAX_ROUTE_LENGTH = 255;
 
 const SENSITIVE_PATTERNS: RegExp[] = [
+  /\b(?:set-cookie|cookie)\s*:\s*[^\r\n]*/gi,
+  /\b[A-Za-z0-9]*[_-]?(?:token|secret|password|passwd)\s*[=:]\s*[^\s,;&]+/gi,
   /\b(?:authorization|proxy-authorization)\s*:\s*[^\s,;]+/gi,
   /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi,
   /\b[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}(?:\.[A-Za-z0-9_-]{2,})?\b/g,
@@ -17,6 +19,8 @@ const SENSITIVE_PATTERNS: RegExp[] = [
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gi,
   /\b(?:sk|pk|rk|api)[-_]?[A-Za-z0-9_-]{16,}\b/gi,
   /(?:^|[?&])(?:token|access_token|refresh_token|api_key|key|secret)=[^&\s]+/gi,
+  // any other long opaque string (invite tokens, hex ids, keys)
+  /\b[A-Za-z0-9_-]{32,}\b/g,
 ];
 
 async function hash(value: string): Promise<string> {
@@ -36,7 +40,10 @@ export function sanitizeSensitiveText(value: unknown): string {
 }
 
 export function sanitizeRoute(value: unknown): string {
-  const route = String(value ?? "unknown").replace(/[\r\n\t]/g, " ").trim();
+  const route = String(value ?? "unknown")
+    .replace(/[\r\n\t]/g, " ")
+    .trim()
+    .split(/[?#]/)[0];
   return sanitizeSensitiveText(route).slice(0, MAX_ROUTE_LENGTH) || "unknown";
 }
 
@@ -59,6 +66,32 @@ export async function buildStackHash(stack?: string): Promise<string | null> {
   return hash(sanitizeSensitiveText(stack));
 }
 
+interface ErrorRow {
+  source: "server" | "client";
+  route: string;
+  message: string;
+  stackHash: string | null;
+  fingerprint: string;
+}
+
+// Upserts one error. Only a brand-new fingerprint (count === 1) can grow the
+// table, so only then is the cap enforced; the cleanup is awaited so it is not
+// dropped when a serverless function freezes right after the response.
+async function upsertError(row: ErrorRow): Promise<void> {
+  const rows = await db
+    .insert(errorEvents)
+    .values(row)
+    .onConflictDoUpdate({
+      target: errorEvents.fingerprint,
+      set: {
+        count: sql`${errorEvents.count} + 1`,
+        lastSeenAt: sql`now()`,
+      },
+    })
+    .returning({ count: errorEvents.count });
+  if (rows?.[0]?.count === 1) await cleanupOldErrorEvents();
+}
+
 export async function reportServerError(route: unknown, error: unknown): Promise<void> {
   try {
     const cleanRoute = sanitizeRoute(route);
@@ -67,26 +100,7 @@ export async function reportServerError(route: unknown, error: unknown): Promise
     const fingerprint = await buildErrorFingerprint(cleanRoute, error, rawStack);
     const stackHash = await buildStackHash(rawStack);
 
-    await db
-      .insert(errorEvents)
-      .values({
-        source: "server",
-        route: cleanRoute,
-        message,
-        stackHash,
-        fingerprint,
-      })
-      .onConflictDoUpdate({
-        target: errorEvents.fingerprint,
-        set: {
-          count: sql`${errorEvents.count} + 1`,
-          lastSeenAt: sql`now()`,
-        },
-      });
-
-    // Cleanup is deliberately fire-and-forget so error capture does not add a
-    // second database round trip to the request that is already failing.
-    void cleanupOldErrorEvents();
+    await upsertError({ source: "server", route: cleanRoute, message, stackHash, fingerprint });
   } catch (captureError) {
     console.error("ResearchHub error capture failed", sanitizeSensitiveText(captureError));
   }
@@ -104,24 +118,7 @@ export async function reportClientError(
     const fingerprint = await buildErrorFingerprint(cleanRoute, new Error(message), stack);
     const stackHash = await buildStackHash(stack);
 
-    await db
-      .insert(errorEvents)
-      .values({
-        source: "client",
-        route: cleanRoute,
-        message,
-        stackHash,
-        fingerprint,
-      })
-      .onConflictDoUpdate({
-        target: errorEvents.fingerprint,
-        set: {
-          count: sql`${errorEvents.count} + 1`,
-          lastSeenAt: sql`now()`,
-        },
-      });
-
-    void cleanupOldErrorEvents();
+    await upsertError({ source: "client", route: cleanRoute, message, stackHash, fingerprint });
   } catch (captureError) {
     console.error("ResearchHub client error capture failed", sanitizeSensitiveText(captureError));
   }
@@ -134,7 +131,7 @@ async function cleanupOldErrorEvents(): Promise<void> {
       WHERE id IN (
         SELECT id
         FROM error_events
-        ORDER BY last_seen_at ASC, id ASC
+        ORDER BY last_seen_at DESC, id DESC
         OFFSET 5000
       )
     `);

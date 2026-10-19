@@ -4,6 +4,8 @@ const { getAuthUser, createIssueReportWithRateLimit } = vi.hoisted(() => ({ getA
 vi.mock("@/lib/auth", () => ({ getAuthUser: () => getAuthUser() }));
 vi.mock("@/lib/reportRateLimit", () => ({ createIssueReportWithRateLimit: (...args: unknown[]) => createIssueReportWithRateLimit(...args) }));
 vi.mock("@/lib/auditLog", () => ({ auditLog: vi.fn() }));
+// the route now imports sanitizeSensitiveText from errorCapture (which imports the db)
+vi.mock("@/db", () => ({ db: {} }));
 
 import { POST, validateReportInput } from "@/app/api/reports/route";
 
@@ -48,5 +50,29 @@ describe("POST /api/reports", () => {
     }));
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("3600");
+  });
+
+  it("stores the page path without query/fragment and with tokens masked", () => {
+    const r = validateReportInput({
+      pagePath: "/invite/0123456789abcdef0123456789abcdef0123456789?token=abc#x",
+      description: "a valid description",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.pagePath).not.toMatch(/0123456789abcdef/);
+      expect(r.value.pagePath).not.toMatch(/[?#]/);
+    }
+    expect(validateReportInput({ pagePath: "//evil.io/x", description: "a valid description" }).ok).toBe(false);
+  });
+
+  it("returns 413 for an oversized body", async () => {
+    getAuthUser.mockResolvedValueOnce({ userId: 7, role: "student" });
+    const res = await POST(new Request("http://localhost/api/reports", {
+      method: "POST",
+      body: JSON.stringify({ pagePath: "/x", description: "x".repeat(20000) }),
+      headers: { "content-type": "application/json" },
+    }));
+    expect(res.status).toBe(413);
+    expect(createIssueReportWithRateLimit).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
 import pg from "pg";
 
 function getArg(name) {
@@ -60,13 +61,9 @@ console.log(`مقصد migration: ${host}/${databaseName}`);
 console.log(`فایل: ${path.relative(process.cwd(), migrationPath)}`);
 
 if (!yes) {
-  process.stdout.write('برای ادامه دقیقاً YES را وارد کنید: ');
-  const answer = await new Promise((resolve) => {
-    let data = "";
-    process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk) => { data += chunk; });
-    process.stdin.on("end", () => resolve(data.trim()));
-  });
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = (await rl.question("برای ادامه دقیقاً YES را وارد کنید: ")).trim();
+  rl.close();
   if (answer !== "YES") {
     console.log("لغو شد.");
     process.exit(0);

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { onConflictDoUpdate, values, insert, execute } = vi.hoisted(() => {
-  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+const { returning, onConflictDoUpdate, values, insert, execute } = vi.hoisted(() => {
+  const returning = vi.fn().mockResolvedValue([{ count: 2 }]);
+  const onConflictDoUpdate = vi.fn(() => ({ returning }));
   const values = vi.fn(() => ({ onConflictDoUpdate }));
   const insert = vi.fn(() => ({ values }));
   const execute = vi.fn().mockResolvedValue({ rows: [] });
-  return { onConflictDoUpdate, values, insert, execute };
+  return { returning, onConflictDoUpdate, values, insert, execute };
 });
 
 vi.mock("@/db", () => ({
@@ -31,7 +32,7 @@ import {
 describe("errorCapture", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    onConflictDoUpdate.mockResolvedValue(undefined);
+    returning.mockResolvedValue([{ count: 2 }]);
     execute.mockResolvedValue({ rows: [] });
   });
 
@@ -75,5 +76,33 @@ describe("errorCapture", () => {
     await reportServerError("/api/x", new Error("boom"));
     expect(insert).toHaveBeenCalledTimes(2);
     expect(onConflictDoUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("also redacts cookies, *_token values and long opaque strings", () => {
+    const out = sanitizeSensitiveText(
+      "Cookie: auth_token=plainvalue123; x=1 | session_token=zzz999 | invite 0123456789abcdef0123456789abcdef0123456789"
+    );
+    expect(out).not.toContain("plainvalue123");
+    expect(out).not.toContain("zzz999");
+    expect(out).not.toContain("0123456789abcdef0123456789abcdef0123456789");
+  });
+
+  it("drops the query string and fragment from routes", () => {
+    expect(sanitizeRoute("/api/x?token=abc&email=a@b.io#frag")).toBe("/api/x");
+    expect(sanitizeRoute("/invite/0123456789abcdef0123456789abcdef0123456789")).not.toMatch(/0123456789abcdef/);
+  });
+
+  it("enforces the row cap only for a NEW fingerprint, and keeps the NEWEST rows", async () => {
+    returning.mockResolvedValueOnce([{ count: 7 }]);
+    await reportServerError("/api/a", new Error("seen before"));
+    expect(execute).not.toHaveBeenCalled();
+
+    returning.mockResolvedValueOnce([{ count: 1 }]);
+    await reportServerError("/api/b", new Error("brand new"));
+    expect(execute).toHaveBeenCalledTimes(1);
+    // Regression: the first version ordered ASC and deleted the newest rows.
+    const text = JSON.stringify(execute.mock.calls[0][0]);
+    expect(text).toMatch(/last_seen_at DESC/);
+    expect(text).not.toMatch(/last_seen_at ASC/);
   });
 });
