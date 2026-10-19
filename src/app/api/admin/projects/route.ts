@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { projects, users, applications, projectMembers } from "@/db/schema";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { count, desc, eq, inArray, sql } from "drizzle-orm";
 import { getAuthUser } from "@/lib/auth";
+import { getAdminDepartments } from "@/lib/adminScope";
 
 export async function GET() {
   try {
@@ -14,6 +15,13 @@ export async function GET() {
       );
     if (admin.role !== "admin")
       return NextResponse.json({ error: "دسترسی مجاز نیست" }, { status: 403 });
+
+    // Faculty scope: only projects whose creator belongs to one of the
+    // admin's departments. No departments => empty list, no projects query.
+    const departments = await getAdminDepartments(admin.userId);
+    if (departments.length === 0) {
+      return NextResponse.json({ projects: [] });
+    }
 
     const rows = await db
       .select({
@@ -40,6 +48,7 @@ export async function GET() {
       })
       .from(projects)
       .innerJoin(users, eq(projects.creatorId, users.id))
+      .where(inArray(users.department, departments))
       .orderBy(desc(projects.createdAt));
 
     return NextResponse.json({ projects: rows });

@@ -4,55 +4,26 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
-import { DEPARTMENTS } from "@/lib/validation";
-import { ArrowLeft, Building2, Check } from "lucide-react";
+import { ArrowLeft, Building2 } from "lucide-react";
 
 export default function AdminDepartmentsPage() {
   const [selected, setSelected] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/departments")
       .then((r) => r.json())
       .then((data) => setSelected(data.selected ?? []))
-      .catch(() => setMessage("دریافت گروه‌های آموزشی ناموفق بود"));
+      .catch(() => setMessage("دریافت گروه‌های آموزشی ناموفق بود"))
+      .finally(() => setLoaded(true));
   }, []);
-
-  const toggle = (department: string) => {
-    setSelected((current) =>
-      current.includes(department)
-        ? current.filter((d) => d !== department)
-        : [...current, department]
-    );
-  };
-
-  const save = async () => {
-    setSaving(true);
-    setMessage("");
-    try {
-      const res = await fetch("/api/admin/departments", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ departments: selected }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "ذخیره‌سازی ناموفق بود");
-      setMessage("محدوده گروه‌های آموزشی با موفقیت ذخیره شد.");
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "ذخیره‌سازی ناموفق بود"
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div>
       <TopBar
-        title="مدیریت گروه‌های آموزشی"
-        subtitle="گروه‌های آموزشی تحت مدیریت این مدیر را انتخاب کنید"
+        title="گروه‌های آموزشی"
+        subtitle="گروه‌های آموزشی تحت مدیریت این مدیر"
       />
       <main className="p-6 lg:p-8">
         <div className="mx-auto max-w-3xl space-y-6">
@@ -77,42 +48,26 @@ export default function AdminDepartmentsPage() {
                 </p>
               </div>
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {DEPARTMENTS.map((department) => {
-                const active = selected.includes(department);
-                return (
-                  <button
-                    key={department}
-                    type="button"
-                    onClick={() => toggle(department)}
-                    className={`flex items-center justify-between rounded-xl border p-4 text-end transition ${
-                      active
-                        ? "border-indigo-300 bg-indigo-50 text-indigo-800"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <span className="text-sm font-medium">{department}</span>
-                    {active && (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white">
-                        <Check size={14} />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-5">
-              <p className="text-sm text-slate-500">
-                {selected.length} گروه آموزشی انتخاب شده
+            {loaded && selected.length === 0 && !message ? (
+              <p className="mt-6 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                هنوز گروه آموزشی به شما اختصاص داده نشده؛ با مالک سامانه تماس
+                بگیرید.
               </p>
-              <button
-                onClick={save}
-                disabled={saving || selected.length === 0}
-                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {saving ? "در حال ذخیره..." : "ذخیره گروه‌های آموزشی"}
-              </button>
-            </div>
+            ) : (
+              <div className="mt-6 flex flex-wrap gap-3">
+                {selected.map((department) => (
+                  <span
+                    key={department}
+                    className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800"
+                  >
+                    {department}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="mt-6 border-t border-slate-100 pt-5 text-sm text-slate-500">
+              برای تغییر گروه‌های آموزشی با مالک سامانه تماس بگیرید.
+            </p>
             {message && (
               <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 {message}

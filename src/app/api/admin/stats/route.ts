@@ -40,9 +40,14 @@ export async function GET() {
       and(eq(users.role, "professor"), inArray(users.department, departments))
     );
 
-  // Projects are intentionally university-wide for admin supervision.
-  // User counts remain scoped to the admin's assigned departments.
-  const projectRows = await db.select({ count: count() }).from(projects);
+  // Faculty scope: count only projects whose creator belongs to one of the
+  // admin's departments (projects.creator_id -> users.department). The empty
+  // departments case already returned above, so this query never runs then.
+  const projectRows = await db
+    .select({ count: count() })
+    .from(projects)
+    .innerJoin(users, eq(projects.creatorId, users.id))
+    .where(inArray(users.department, departments));
 
   return NextResponse.json({
     students: Number(studentRows[0]?.count ?? 0),
