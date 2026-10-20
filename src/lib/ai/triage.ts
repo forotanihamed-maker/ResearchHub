@@ -42,6 +42,8 @@ export interface TriageSummary {
   escalated: number;
   budgetExhausted: boolean;
   costUsd: number;
+  /** HTTP status of the last provider failure (null = network/timeout). Never a body. */
+  lastProviderStatus?: number | null;
 }
 
 interface RunRecord {
@@ -282,6 +284,8 @@ export async function runTriage(options: TriageOptions = {}): Promise<TriageSumm
           }
           if (error instanceof AiProviderError) {
             summary.failed++;
+            summary.lastProviderStatus = error.status;
+            console.warn("[ai-triage] provider failed:", error.message);
             if (records.length) await persistRuns(db, null, records);
             if (++consecutiveProviderErrors >= 3) break;
             continue;
