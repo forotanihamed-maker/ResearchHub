@@ -1,26 +1,54 @@
-import "dotenv/config";
-import { Client } from "pg";
+// Usage: node scripts/ai-budget.mjs            (status)
+//        node scripts/ai-budget.mjs --cap 8    (set this month's cap in USD)
+//        node scripts/ai-budget.mjs --kill on|off
+import pg from "pg";
+import { readFileSync, existsSync } from "node:fs";
+
+function loadEnvFile(file) {
+  if (!existsSync(file)) return;
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+}
+loadEnvFile(".env.local");
+loadEnvFile(".env");
 
 const args = process.argv.slice(2);
-const capIndex = args.indexOf("--cap");
-const killIndex = args.indexOf("--kill");
-const cap = capIndex >= 0 ? Number(args[capIndex + 1]) : null;
-const kill = killIndex >= 0 ? args[killIndex + 1] : null;
+const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+if (!process.env.DATABASE_URL) { console.error("DATABASE_URL is not set"); process.exit(1); }
 
-if (cap !== null && (!Number.isFinite(cap) || cap < 0)) throw new Error("--cap must be a non-negative number");
-if (kill !== null && kill !== "on" && kill !== "off") throw new Error("--kill must be on or off");
-
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL is not set");
-const client = new Client({ connectionString: url });
-await client.connect();
+const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+const MONTH = "to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')";
 try {
-  const month = (await client.query("SELECT to_char(current_timestamp AT TIME ZONE 'UTC', 'YYYY-MM') AS month")).rows[0].month;
-  await client.query("INSERT INTO ai_budget (month, monthly_cap_usd, used_usd, kill_switch) VALUES ($1, $2, 0, false) ON CONFLICT (month) DO NOTHING", [month, process.env.AI_MONTHLY_CAP_USD ?? "5"]);
-  if (cap !== null) await client.query("UPDATE ai_budget SET monthly_cap_usd = $1 WHERE month = $2", [cap.toFixed(6), month]);
-  if (kill !== null) await client.query("UPDATE ai_budget SET kill_switch = $1 WHERE month = $2", [kill === "on", month]);
-  const row = (await client.query("SELECT month, monthly_cap_usd, used_usd, kill_switch FROM ai_budget WHERE month = $1", [month])).rows[0];
-  console.log(JSON.stringify(row));
+  await client.connect();
+  const cap = opt("--cap");
+  const kill = opt("--kill");
+  if (cap !== undefined) {
+    const n = Number(cap);
+    if (!Number.isFinite(n) || n <= 0) throw new Error("--cap must be a positive number (USD)");
+    await client.query(
+      `INSERT INTO ai_budget (month, monthly_cap_usd, used_usd, kill_switch)
+       VALUES (${MONTH}, $1::numeric, 0, false)
+       ON CONFLICT (month) DO UPDATE SET monthly_cap_usd = EXCLUDED.monthly_cap_usd`, [n.toFixed(6)]);
+  }
+  if (kill !== undefined) {
+    if (kill !== "on" && kill !== "off") throw new Error("--kill must be on or off");
+    await client.query(
+      `INSERT INTO ai_budget (month, monthly_cap_usd, used_usd, kill_switch)
+       VALUES (${MONTH}, 5, 0, $1)
+       ON CONFLICT (month) DO UPDATE SET kill_switch = EXCLUDED.kill_switch`, [kill === "on"]);
+  }
+  const r = await client.query(
+    `SELECT month, monthly_cap_usd, used_usd, kill_switch FROM ai_budget WHERE month = ${MONTH}`);
+  if (r.rows.length === 0) console.log("No budget row for this month yet (created on first triage run).");
+  else {
+    const b = r.rows[0];
+    console.log(`month=${b.month} cap=$${b.monthly_cap_usd} used=$${b.used_usd} kill_switch=${b.kill_switch}`);
+  }
+} catch (e) {
+  console.error("Error:", e.message);
+  process.exitCode = 1;
 } finally {
   await client.end();
 }

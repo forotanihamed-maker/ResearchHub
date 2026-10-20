@@ -1,47 +1,45 @@
-const SENSITIVE_PATTERNS: RegExp[] = [
-  /\b(?:set-cookie|cookie)\s*:\s*[^\r\n]*/gi,
-  /\b[A-Za-z0-9]*[_-]?(?:token|secret|password|passwd)\s*[=:]\s*[^\s,;&]+/gi,
-  /\b(?:authorization|proxy-authorization)\s*:\s*[^\s,;]+/gi,
-  /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi,
-  /\b[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}(?:\.[A-Za-z0-9_-]{2,})?\b/g,
-  /\b(?:jwt|token|access_token|refresh_token|id_token)\s*[=:]\s*[^\s,;]+/gi,
-  /\b(?:password|passwd|secret)\s*[=:]\s*[^\s,;]+/gi,
-  /\b(?:DATABASE_URL|POSTGRES(?:QL)?_URL)\s*[=:]\s*[^\s]+/gi,
-  /postgres(?:ql)?:\/\/[^\s]+/gi,
-  /https?:\/\/[^\s]*[?&](?:token|access_token|api_key|key|secret)=[^\s&]+/gi,
-  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gi,
-  /\b(?:sk|pk|rk|api)[-_]?[A-Za-z0-9_-]{16,}\b/gi,
-  /(?:^|[?&])(?:token|access_token|refresh_token|api_key|key|secret)=[^&\s]+/gi,
-  /\b[A-Za-z0-9_-]{32,}\b/g,
+// src/lib/ai/mask.ts
+//
+// Everything that is sent to a model goes through here first. The masking is
+// deliberately blunt: a wrongly masked word costs a little accuracy, a missed
+// secret or personal detail costs far more.
+import { sanitizeSensitiveText } from "@/lib/errorCapture";
+
+const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+
+function toAsciiDigits(text: string): string {
+  return text.replace(/[۰-۹٠-٩]/g, (ch) => {
+    const i = PERSIAN_DIGITS.indexOf(ch);
+    return String(i >= 0 ? i : ARABIC_DIGITS.indexOf(ch));
+  });
+}
+
+const EXTRA_PATTERNS: Array<[RegExp, string]> = [
+  // URLs: drop everything after the path's query (keeps host + path)
+  [/(https?:\/\/[^\s?#"'<>]+)[?#][^\s"'<>]*/gi, "$1"],
+  // Windows and Unix file paths
+  [/\b[A-Za-z]:\\[^\s"'<>|]+/g, "[path]"],
+  [/(?<![\w:/])\/(?:home|Users|var|app|usr|etc|opt|tmp|srv|root|mnt)\/[^\s"'<>]+/g, "[path]"],
+  // IPv4
+  [/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[ip]"],
+  // Iranian mobile numbers (digits already normalised to ASCII)
+  [/(?<![0-9])(?:\+98|0098|0)?9\d{9}(?![0-9])/g, "[phone]"],
+  // national / student ids and any other long digit run
+  [/(?<![0-9])\d{8,}(?![0-9])/g, "[number]"],
 ];
 
-const PHONE = /(?:\+98|0098|0)9\d{9}/g;
-const IP = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-const FILE_PATH = /(?:[A-Za-z]:\\[^\s]+|(?:\/[^\s/]+){2,})/g;
-const QUERY_URL = /https?:\/\/[^\s]+[?][^\s]+/gi;
-const LONG_OPAQUE = /\b[A-Za-z0-9_-]{40,}\b/g;
-
-function sanitizeSensitiveText(value: unknown): string {
-  let text = value instanceof Error ? value.message : String(value ?? "");
-  for (const pattern of SENSITIVE_PATTERNS) text = text.replace(pattern, "[REDACTED]");
-  return text.slice(0, 2000);
-}
-
-export function maskForAI(value: unknown, maxLength = 4000): string {
-  let text = sanitizeSensitiveText(value);
-  text = text.replace(PHONE, "[PHONE]");
-  text = text.replace(QUERY_URL, "[URL_WITH_QUERY]");
-  text = text.replace(IP, "[IP]");
-  text = text.replace(FILE_PATH, "[FILE_PATH]");
-  text = text.replace(LONG_OPAQUE, "[OPAQUE]");
+/**
+ * Masks text for a model. Digits are normalised first so that Persian-digit
+ * phone numbers are caught, and angle brackets are neutralised so user text
+ * can never close or forge the data tags used in the prompt.
+ */
+export function maskForModel(input: unknown, maxLength = 2000): string {
+  let text = toAsciiDigits(typeof input === "string" ? input : String(input ?? ""));
+  text = sanitizeSensitiveText(text);
+  for (const [pattern, replacement] of EXTRA_PATTERNS) {
+    text = text.replace(pattern, replacement);
+  }
+  text = text.replace(/</g, "‹").replace(/>/g, "›");
   return text.slice(0, maxLength);
-}
-
-export function maskStack(stack: unknown): string {
-  return maskForAI(String(stack ?? "").split(/\r?\n/).slice(0, 3).join("\n"), 3000);
-}
-
-export function maskPagePath(path: unknown): string {
-  const clean = String(path ?? "unknown").split(/[?#]/)[0];
-  return maskForAI(clean, 500);
 }

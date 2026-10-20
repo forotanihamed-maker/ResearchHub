@@ -1,77 +1,87 @@
-import { db } from "@/db";
-import { aiBudget } from "@/db/schema";
+// src/lib/ai/budget.ts
+//
+// Monthly spend control. All month and arithmetic logic lives in SQL so the
+// reservation is atomic: two concurrent runs can never overspend the cap.
+// The month is UTC 'YYYY-MM'.
 import { sql } from "drizzle-orm";
+import { db } from "@/db";
+import type { Env } from "@/lib/ai/provider";
 
-export const DEFAULT_MONTHLY_CAP_USD = 5;
+// USD per 1M tokens. Source: api-docs.deepseek.com pricing, checked 2026-10-20.
+// Cost is estimated at the highest rate (cache MISS, PEAK hours) on purpose:
+// the real bill can only be lower. Unknown models use the pro rates.
+const PRICES: Record<string, { input: number; output: number }> = {
+  "deepseek-flash": { input: 0.3, output: 1.2 },
+  "deepseek-v4-flash": { input: 0.3, output: 1.2 },
+  "deepseek-v4-pro": { input: 1.32, output: 3.96 },
+  "fake-triage": { input: 0, output: 0 },
+  "fake-deep": { input: 0, output: 0 },
+};
+const FALLBACK = PRICES["deepseek-v4-pro"];
 
-function configuredCap(): string {
-  const value = process.env.AI_MONTHLY_CAP_USD?.trim();
-  if (!value) return DEFAULT_MONTHLY_CAP_USD.toFixed(6);
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_MONTHLY_CAP_USD.toFixed(6);
-  return parsed.toFixed(6);
+export function costUsd(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  env: Env = process.env
+): number {
+  const overrideIn = Number(env.AI_PRICE_INPUT_USD_PER_M);
+  const overrideOut = Number(env.AI_PRICE_OUTPUT_USD_PER_M);
+  const base = PRICES[model] ?? FALLBACK;
+  const input = Number.isFinite(overrideIn) && overrideIn > 0 ? overrideIn : base.input;
+  const output = Number.isFinite(overrideOut) && overrideOut > 0 ? overrideOut : base.output;
+  return (inputTokens * input + outputTokens * output) / 1_000_000;
 }
 
-export async function reserveBudget(estimateUsd: string): Promise<{ allowed: boolean; month: string; reservedUsd: string }> {
-  const cap = configuredCap();
-  const rows = await db.execute(sql`
+/** Upper-bound token estimate: 1 token per 2 characters is safe for Persian. */
+export function estimateInputTokens(...texts: string[]): number {
+  return Math.ceil(texts.reduce((n, t) => n + t.length, 0) / 2) + 300;
+}
+
+const usd = (n: number) => n.toFixed(6);
+
+export async function ensureBudgetRow(capUsd: number): Promise<void> {
+  await db.execute(sql`
     INSERT INTO ai_budget (month, monthly_cap_usd, used_usd, kill_switch)
-    VALUES (to_char(current_timestamp AT TIME ZONE 'UTC', 'YYYY-MM'), ${cap}, 0, false)
-    ON CONFLICT (month) DO NOTHING
-  `);
-  void rows;
-
-  const result = await db.execute(sql`
-    UPDATE ai_budget
-    SET used_usd = used_usd + ${estimateUsd}::numeric
-    WHERE month = to_char(current_timestamp AT TIME ZONE 'UTC', 'YYYY-MM')
-      AND kill_switch = false
-      AND used_usd + ${estimateUsd}::numeric <= monthly_cap_usd
-    RETURNING month, used_usd - ${estimateUsd}::numeric AS previous_used
-  `);
-  const row = result.rows[0] as { month?: string } | undefined;
-  return row?.month ? { allowed: true, month: row.month, reservedUsd: estimateUsd } : {
-    allowed: false,
-    month: new Date().toISOString().slice(0, 7),
-    reservedUsd: "0.000000",
-  };
+    VALUES (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM'), ${usd(capUsd)}::numeric, 0, false)
+    ON CONFLICT (month) DO NOTHING`);
 }
 
-export async function adjustBudget(month: string, reservedUsd: string, actualUsd: string): Promise<void> {
-  const delta = (Number(actualUsd) - Number(reservedUsd)).toFixed(6);
+/** Atomically adds `estUsd` to used_usd if it fits under the cap and the kill switch is off. */
+export async function reserve(estUsd: number): Promise<boolean> {
+  const res = await db.execute(sql`
+    UPDATE ai_budget
+       SET used_usd = used_usd + ${usd(estUsd)}::numeric
+     WHERE month = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')
+       AND kill_switch = false
+       AND used_usd + ${usd(estUsd)}::numeric <= monthly_cap_usd
+    RETURNING id`);
+  return res.rows.length === 1;
+}
+
+/** Replaces a reservation by the real cost (reservation 0 = refund). */
+export async function settle(reservedUsd: number, actualUsd: number): Promise<void> {
   await db.execute(sql`
     UPDATE ai_budget
-    SET used_usd = GREATEST(0, used_usd + ${delta}::numeric)
-    WHERE month = ${month}
-  `);
+       SET used_usd = greatest(used_usd - ${usd(reservedUsd)}::numeric + ${usd(actualUsd)}::numeric, 0)
+     WHERE month = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')`);
 }
 
-export async function releaseBudget(month: string, reservedUsd: string): Promise<void> {
-  await db.execute(sql`
-    UPDATE ai_budget
-    SET used_usd = GREATEST(0, used_usd - ${reservedUsd}::numeric)
-    WHERE month = ${month}
-  `);
+export interface BudgetStatus {
+  month: string;
+  capUsd: number;
+  usedUsd: number;
+  killSwitch: boolean;
 }
 
-export function estimateCostUsd(model: string, inputTokens: number, outputTokens: number): string {
-  const peak = isPeakUtc();
-  const rates = model === "deepseek-v4-pro"
-    ? { input: peak ? 1.32 : 0.66, output: peak ? 3.96 : 1.98 }
-    : { input: peak ? 0.30 : 0.15, output: peak ? 1.20 : 0.60 };
-  const cost = (inputTokens / 1_000_000) * rates.input + (outputTokens / 1_000_000) * rates.output;
-  return cost.toFixed(6);
-}
-
-export function estimateWorstCaseUsd(model: string, inputTokens: number, maxOutputTokens = 2000): string {
-  const rates = model === "deepseek-v4-pro" ? { input: 1.32, output: 3.96 } : { input: 0.30, output: 1.20 };
-  return ((inputTokens / 1_000_000) * rates.input + (maxOutputTokens / 1_000_000) * rates.output).toFixed(6);
-}
-
-function isPeakUtc(): boolean {
-  const now = new Date();
-  const day = now.getUTCDay();
-  if (day === 0 || day === 6) return false;
-  const hour = now.getUTCHours();
-  return (hour >= 1 && hour < 4) || (hour >= 6 && hour < 10);
+export async function getBudgetStatus(): Promise<BudgetStatus | null> {
+  const res = await db.execute(sql`
+    SELECT month, monthly_cap_usd::float8 AS cap, used_usd::float8 AS used, kill_switch
+      FROM ai_budget WHERE month = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')`);
+  const row = res.rows[0] as
+    | { month: string; cap: number; used: number; kill_switch: boolean }
+    | undefined;
+  return row
+    ? { month: row.month, capUsd: row.cap, usedUsd: row.used, killSwitch: row.kill_switch }
+    : null;
 }

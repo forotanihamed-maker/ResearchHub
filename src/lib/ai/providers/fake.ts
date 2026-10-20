@@ -1,51 +1,58 @@
-import type { AIProvider, ProviderRequest, ProviderResult } from "../provider";
+// src/lib/ai/providers/fake.ts
+//
+// Deterministic provider for tests and for running the pipeline at zero cost.
+// It records every request it receives (so tests can prove what would have
+// been sent to a real provider) and can be scripted to misbehave.
+import type {
+  AiProvider,
+  CompletionRequest,
+  CompletionResult,
+} from "@/lib/ai/provider";
 
-export class FakeProvider implements AIProvider {
-  async complete(request: ProviderRequest): Promise<ProviderResult> {
-    const text = request.user.toLowerCase();
-    if (text.includes("__fake_invalid__")) {
-      return { toolName: request.tool.name, toolArgs: { invalid: true }, inputTokens: 20, outputTokens: 5 };
+const HIGH = /(نمی[‌ ]?تواند وارد|ورود.*(نمی|خطا)|login|crash|کرش|500|پاک شد|از دست رفت|داده.*(نادرست|حذف)|امنیت|نشت|توکن|رمز)/i;
+const LOW = /(پیشنهاد|ظاهر|رنگ|فونت|typo|غلط املایی)/i;
+
+/** Text inside the <user_report>/<error_event> block, or the whole input. */
+function dataBlock(user: string): string {
+  const m = /<(user_report|error_event)>([\s\S]*?)<\/\1>/.exec(user);
+  return (m ? m[2] : user).trim();
+}
+
+export interface FakeOptions {
+  /** Replace the answer entirely (e.g. to return invalid output). */
+  respond?: (req: CompletionRequest, callNumber: number) => CompletionResult | Promise<CompletionResult>;
+}
+
+export class FakeProvider implements AiProvider {
+  readonly name = "fake";
+  /** Every request seen, in order. */
+  readonly calls: CompletionRequest[] = [];
+
+  constructor(private readonly options: FakeOptions = {}) {}
+
+  async complete(req: CompletionRequest): Promise<CompletionResult> {
+    this.calls.push(req);
+    if (this.options.respond) {
+      return this.options.respond(req, this.calls.length);
     }
-    if (text.includes("__fake_unauthorized_tool__")) {
-      return {
-        toolName: "delete_project",
-        toolArgs: {
-          title: "Fake unauthorized tool",
-          summary: "fake provider requested a tool outside the allowlist",
-          severity: "medium",
-          category: "needs_human",
-          suggestedFix: "بررسی دستی",
-          confidence: 0.5,
-          needsHuman: true,
-          evidence: ["__FAKE_UNAUTHORIZED_TOOL__"],
-          __toolName: "delete_project",
-        },
-        inputTokens: 30,
-        outputTokens: 10,
-      };
-    }
 
-    const severity = /نمی.?تواند|cannot|can't|خطا|error|crash|failed|failure/i.test(text)
-      ? "high"
-      : "medium";
-    const category = /ورود|وارد|login|auth|رمز|password/i.test(text)
-      ? "authentication"
-      : "needs_human";
-
+    const text = dataBlock(req.user);
+    const severity = HIGH.test(text) ? "high" : LOW.test(text) ? "low" : "medium";
+    const evidence = text.slice(0, 60).trim();
+    const args = {
+      title: `بررسی: ${text.slice(0, 40).trim() || "گزارش"}`,
+      summary: `خلاصه‌ی خودکار (provider جعلی): ${text.slice(0, 120).trim()}`,
+      severity,
+      category: severity === "high" ? "bug" : "other",
+      suggestedFix: "نیاز به بررسی دستی کد مربوط به این صفحه.",
+      confidence: 0.6,
+      needsHuman: false,
+      evidence: evidence ? [evidence] : [],
+    };
     return {
-      toolName: request.tool.name,
-      toolArgs: {
-        title: severity === "high" ? "مشکل قابل بررسی" : "گزارش نیازمند بررسی",
-        summary: "این خروجی توسط provider جعلی برای آزمون تولید شده است.",
-        severity,
-        category,
-        suggestedFix: "بررسی و بازتولید مشکل بر اساس شواهد موجود",
-        confidence: 0.72,
-        needsHuman: false,
-        evidence: ["provider-fake-evidence"],
-      },
-      inputTokens: Math.max(1, Math.ceil(request.user.length / 4)),
-      outputTokens: 40,
+      toolCalls: [{ name: req.tool.name, argumentsJson: JSON.stringify(args) }],
+      inputTokens: Math.ceil((req.system.length + req.user.length) / 3),
+      outputTokens: Math.ceil(JSON.stringify(args).length / 3),
     };
   }
 }

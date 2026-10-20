@@ -1,191 +1,304 @@
-import crypto from "node:crypto";
-import { db } from "@/db";
-import { aiAnalysisRuns, aiTaskSources, aiTasks, aiToolCalls, errorEvents, issueReports } from "@/db/schema";
-import { and, eq, notExists, desc } from "drizzle-orm";
-import { auditLog } from "@/lib/auditLog";
-import { getAIConfig, getAIProvider, type AIProvider, type ProviderResult } from "./provider";
-import { maskForAI, maskPagePath } from "./mask";
-import { buildErrorPrompt, buildReportPrompt, SUBMIT_TRIAGE_TOOL, TRIAGE_SYSTEM_PROMPT } from "./prompts";
-import { adjustBudget, estimateCostUsd, estimateWorstCaseUsd, releaseBudget, reserveBudget } from "./budget";
+// src/lib/ai/triage.ts
+//
+// Turns new reports / error events into ai_tasks. Guarantees:
+// - the model sees only masked text and may only call submit_triage;
+// - every model tool call is logged (ai_tool_calls), allowed or not;
+// - spend is reserved atomically before each call and reconciled after;
+// - a source becomes a task at most once (unique index + advisory lock);
+// - task, source link and report status change in ONE transaction.
+import { createHash } from "node:crypto";
+import { sql } from "drizzle-orm";
+import { db, pool } from "@/db";
+import { aiAnalysisRuns, aiTaskSources, aiTasks, aiToolCalls, issueReports } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import {
+  AiConfigError,
+  AiProviderError,
+  getAiConfig,
+  getProvider,
+  type AiConfig,
+  type AiProvider,
+  type CompletionResult,
+} from "@/lib/ai/provider";
+import {
+  SYSTEM_PROMPT,
+  TRIAGE_TOOL,
+  TRIAGE_TOOL_NAME,
+  buildErrorPrompt,
+  buildReportPrompt,
+} from "@/lib/ai/prompts";
+import { validateTriage, type TriageResult } from "@/lib/ai/validate";
+import { costUsd, ensureBudgetRow, estimateInputTokens, reserve, settle } from "@/lib/ai/budget";
 
-const MAX_SOURCES = 20;
-const MAX_RUNTIME_MS = 40_000;
+const MAX_OUTPUT_TOKENS = 700;
+const LOCK_KEY = 6_000_001; // arbitrary app-wide advisory-lock id for the triage job
 
-export async function triageSources(): Promise<{ processed: number; skipped: number; errors: number; costUsd: string }> {
-  const started = Date.now();
-  const config = getAIConfig();
-  if (!config.enabled) return { processed: 0, skipped: 0, errors: 0, costUsd: "0.000000" };
-  if (config.provider === "deepseek" && !config.apiKey) throw new Error("DeepSeek provider is enabled but API key is missing");
-
-  const reports = await db.select().from(issueReports).where(and(
-    eq(issueReports.status, "new"),
-    notExists(db.select({ id: aiTaskSources.id }).from(aiTaskSources).where(and(
-      eq(aiTaskSources.sourceType, "report"), eq(aiTaskSources.sourceId, issueReports.id)
-    )))
-  )).orderBy(issueReports.createdAt).limit(MAX_SOURCES);
-
-  const remaining = Math.max(0, MAX_SOURCES - reports.length);
-  const errors = remaining > 0 ? await db.select().from(errorEvents).where(notExists(
-    db.select({ id: aiTaskSources.id }).from(aiTaskSources).where(and(
-      eq(aiTaskSources.sourceType, "error"), eq(aiTaskSources.sourceId, errorEvents.id)
-    ))
-  )).orderBy(desc(errorEvents.count), desc(errorEvents.lastSeenAt)).limit(remaining) : [];
-
-  let processed = 0, skipped = 0, failures = 0, totalCost = 0;
-  for (const source of reports) {
-    if (Date.now() - started > MAX_RUNTIME_MS) break;
-    try { const r = await processReport(source); r.processed ? processed++ : skipped++; totalCost += Number(r.costUsd); }
-    catch (error) { failures++; auditLog("ai_triage_error", { sourceType: "report", sourceId: source.id, errorType: error instanceof Error ? error.name : "Error" }); }
-  }
-  for (const source of errors) {
-    if (Date.now() - started > MAX_RUNTIME_MS) break;
-    try { const r = await processError(source); r.processed ? processed++ : skipped++; totalCost += Number(r.costUsd); }
-    catch (error) { failures++; auditLog("ai_triage_error", { sourceType: "error", sourceId: source.id, errorType: error instanceof Error ? error.name : "Error" }); }
-  }
-  return { processed, skipped, errors: failures, costUsd: totalCost.toFixed(6) };
+export interface TriageSummary {
+  skipped?: "disabled" | "locked" | "no_budget";
+  processed: number;
+  created: number;
+  needsHuman: number;
+  failed: number;
+  escalated: number;
+  budgetExhausted: boolean;
+  costUsd: number;
 }
 
-async function processReport(source: typeof issueReports.$inferSelect) {
-  const prompt = buildReportPrompt({ sourceId: source.id, pagePath: maskPagePath(source.pagePath), description: maskForAI(source.description), category: source.category });
-  return processSource("report", source.id, prompt);
+interface RunRecord {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  toolCalls: Array<{ name: string; argsHash: string; allowed: boolean }>;
 }
 
-async function processError(source: typeof errorEvents.$inferSelect) {
-  const prompt = buildErrorPrompt({
-    sourceId: source.id,
-    route: maskForAI(source.route, 255),
-    message: maskForAI(source.message),
-    count: source.count,
-    lastSeenAt: source.lastSeenAt.toISOString(),
-    stack: source.stackHash ? `[STACK_HASH:${source.stackHash}]` : undefined,
-  });
-  return processSource("error", source.id, prompt);
-}
+type Source =
+  | { type: "report"; id: number; prompt: string }
+  | { type: "error"; id: number; prompt: string };
 
-async function processSource(sourceType: "report" | "error", sourceId: number, prompt: string) {
-  const config = getAIConfig();
-  const provider = await getAIProvider();
-  const first = await runProviderCall(provider, config.triageModel, prompt, sourceType, sourceId);
-  if (!first) return { processed: false, costUsd: "0.000000" };
-  const runIds = [first.runId];
-  let totalCost = Number(first.costUsd);
-  let output = validateTriage(first.result.toolArgs);
+class SkipSource extends Error {}
+class BudgetExhausted extends Error {}
 
-  if (!output) {
-    const retry = await runProviderCall(provider, config.triageModel, `${prompt}\n\nخروجی قبلی نامعتبر بود؛ فقط submit_triage معتبر را برگردان.`, sourceType, sourceId);
-    if (retry) { runIds.push(retry.runId); totalCost += Number(retry.costUsd); output = validateTriage(retry.result.toolArgs); }
-  }
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
-  if (!output) {
-    const fallback = {
-      title: "بررسی دستی لازم است",
-      summary: "پاسخ مدل قابل‌استفاده نبود؛ بررسی دستی لازم است",
-      severity: "medium" as const,
-      category: "needs_human",
-      suggestedFix: "بررسی دستی",
-      confidence: null,
-    };
-    const task = await createTask(sourceType, sourceId, fallback, true);
-    await linkRunsToTask(task.id, runIds);
-    return { processed: task.created, costUsd: totalCost.toFixed(6) };
-  }
+/** One model call with budget reservation. Throws BudgetExhausted / AiProviderError. */
+async function callModel(
+  provider: AiProvider,
+  model: string,
+  user: string,
+  records: RunRecord[]
+): Promise<{ result: CompletionResult; triage: TriageResult | null }> {
+  const est = costUsd(model, estimateInputTokens(SYSTEM_PROMPT, user), MAX_OUTPUT_TOKENS);
+  if (!(await reserve(est))) throw new BudgetExhausted();
 
-  // High/critical findings get one second-pass review with the stronger model.
-  if ((output.severity === "high" || output.severity === "critical") && config.deepModel !== config.triageModel) {
-    const deep = await runProviderCall(provider, config.deepModel, `${prompt}\n\nاین مورد در ارزیابی اولیه high/critical بوده است. با همان شواهد، فقط در صورت وجود شاهد کافی شدت را تأیید یا اصلاح کن.`, sourceType, sourceId);
-    if (deep) { runIds.push(deep.runId); totalCost += Number(deep.costUsd); const deepOutput = validateTriage(deep.result.toolArgs); if (deepOutput) output = deepOutput; }
-  }
-
-  const task = await createTask(sourceType, sourceId, output, false);
-  if (!task.created) return { processed: false, costUsd: totalCost.toFixed(6) };
-  await linkRunsToTask(task.id, runIds);
-  return { processed: true, costUsd: totalCost.toFixed(6) };
-}
-
-interface ProviderRun {
-  runId: number;
-  result: ProviderResult;
-  costUsd: string;
-}
-
-async function runProviderCall(provider: AIProvider, model: string, user: string, sourceType: "report" | "error", sourceId: number): Promise<ProviderRun | null> {
-  const estimate = estimateWorstCaseUsd(model, Math.max(1, Math.ceil(user.length / 3)));
-  const reservation = await reserveBudget(estimate);
-  if (!reservation.allowed) {
-    auditLog("ai_budget_blocked", { sourceType, sourceId, model });
-    return null;
-  }
-
-  let result: ProviderResult;
+  let result: CompletionResult;
   try {
-    result = await provider.complete({ model, system: TRIAGE_SYSTEM_PROMPT, user, tool: SUBMIT_TRIAGE_TOOL });
+    result = await provider.complete({
+      model,
+      system: SYSTEM_PROMPT,
+      user,
+      tool: TRIAGE_TOOL,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+    });
   } catch (error) {
-    await releaseBudget(reservation.month, reservation.reservedUsd);
+    await settle(est, 0); // nothing was billed for a failed call
     throw error;
   }
 
-  const costUsd = estimateCostUsd(model, result.inputTokens, result.outputTokens);
-  await adjustBudget(reservation.month, reservation.reservedUsd, costUsd);
-  const [run] = await db.insert(aiAnalysisRuns).values({ taskId: null, model, inputTokens: result.inputTokens, outputTokens: result.outputTokens, costUsd }).returning({ id: aiAnalysisRuns.id });
-  const argsHash = crypto.createHash("sha256").update(JSON.stringify(result.toolArgs)).digest("hex");
-  const allowed = result.toolName === SUBMIT_TRIAGE_TOOL.name;
-  await db.insert(aiToolCalls).values({ runId: run.id, toolName: result.toolName.slice(0, 100), argsHash, allowed });
-  if (!allowed) auditLog("ai_tool_call_rejected", { runId: run.id, toolName: result.toolName.slice(0, 100) });
-  return { runId: run.id, result, costUsd };
+  const actual = costUsd(model, result.inputTokens, result.outputTokens);
+  await settle(est, actual);
+  records.push({
+    model,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    cost: actual,
+    toolCalls: result.toolCalls.map((c) => ({
+      name: c.name,
+      argsHash: sha(c.argumentsJson),
+      allowed: c.name === TRIAGE_TOOL_NAME,
+    })),
+  });
+
+  // Only the allowed tool is considered; anything else is ignored (and logged above).
+  const allowed = result.toolCalls.find((c) => c.name === TRIAGE_TOOL_NAME);
+  return { result, triage: allowed ? validateTriage(allowed.argumentsJson) : null };
 }
 
-async function linkRunsToTask(taskId: number, runIds: number[]) {
-  for (const runId of runIds) await db.update(aiAnalysisRuns).set({ taskId }).where(eq(aiAnalysisRuns.id, runId));
-}
-
-interface TriageOutput {
-  title: string;
-  summary: string;
-  severity: "low" | "medium" | "high" | "critical";
-  category: string;
-  suggestedFix: string;
-  confidence: number | null;
-  needsHuman: boolean;
-  evidence: string[];
-}
-
-function validateTriage(value: unknown): TriageOutput | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const v = value as Record<string, unknown>;
-  const severities = ["low", "medium", "high", "critical"];
-  const categories = ["authentication", "authorization", "project", "ui", "data", "performance", "security", "infrastructure", "needs_human"];
-  if (typeof v.title !== "string" || v.title.length < 1 || v.title.length > 255) return null;
-  if (typeof v.summary !== "string" || v.summary.length < 1 || v.summary.length > 2000) return null;
-  if (typeof v.severity !== "string" || !severities.includes(v.severity)) return null;
-  if (typeof v.category !== "string" || !categories.includes(v.category)) return null;
-  if (typeof v.suggestedFix !== "string" || v.suggestedFix.length > 2000) return null;
-  if (v.confidence !== null && (typeof v.confidence !== "number" || !Number.isFinite(v.confidence) || v.confidence < 0 || v.confidence > 1)) return null;
-  if (typeof v.needsHuman !== "boolean" || !Array.isArray(v.evidence) || v.evidence.length > 8 || !v.evidence.every((x) => typeof x === "string" && x.length <= 500)) return null;
+function needsHumanTask(): TriageResult {
   return {
-    title: maskForAI(v.title, 255), summary: maskForAI(v.summary, 2000), severity: v.severity as TriageOutput["severity"],
-    category: v.category, suggestedFix: maskForAI(v.suggestedFix, 2000), confidence: v.confidence as number | null,
-    needsHuman: v.needsHuman, evidence: (v.evidence as string[]).map((x) => maskForAI(x, 500)),
+    title: "نیازمند بررسی انسانی",
+    summary: "تحلیل خودکار نتیجه‌ی معتبر نداد؛ این مورد باید دستی بررسی شود.",
+    severity: "medium",
+    category: "needs_human",
+    suggestedFix: null,
+    confidence: 0,
+    needsHuman: true,
+    evidence: [],
   };
 }
 
-async function createTask(sourceType: "report" | "error", sourceId: number, result: Pick<TriageOutput, "title" | "summary" | "severity" | "category" | "suggestedFix" | "confidence">, fallback: boolean) {
-  return db.transaction(async (tx) => {
-    const [existing] = await tx.select({ id: aiTaskSources.id }).from(aiTaskSources).where(and(eq(aiTaskSources.sourceType, sourceType), eq(aiTaskSources.sourceId, sourceId))).limit(1);
-    if (existing) return { id: 0, created: false };
-    try {
-      const [task] = await tx.insert(aiTasks).values({ title: result.title, summary: result.summary, severity: result.severity, category: result.category, suggestedFix: result.suggestedFix, confidence: result.confidence }).returning({ id: aiTasks.id });
-      await tx.insert(aiTaskSources).values({ taskId: task.id, sourceType, sourceId });
-      if (sourceType === "report") await tx.update(issueReports).set({ status: "triaged" }).where(eq(issueReports.id, sourceId));
-      auditLog("ai_task_created", { taskId: task.id, sourceType, sourceId, fallback });
-      return { id: task.id, created: true };
-    } catch (error) {
-      // A concurrent cron may have won the unique source link. Treat it as an idempotent skip.
-      if (isUniqueViolation(error)) return { id: 0, created: false };
-      throw error;
+async function persistRuns(tx: Pick<typeof db, "insert">, taskId: number | null, records: RunRecord[]) {
+  for (const r of records) {
+    const [run] = await tx
+      .insert(aiAnalysisRuns)
+      .values({
+        taskId,
+        model: r.model,
+        inputTokens: r.inputTokens,
+        outputTokens: r.outputTokens,
+        costUsd: r.cost.toFixed(6),
+      })
+      .returning({ id: aiAnalysisRuns.id });
+    if (r.toolCalls.length > 0) {
+      await tx.insert(aiToolCalls).values(
+        r.toolCalls.map((c) => ({
+          runId: run.id,
+          toolName: c.name.slice(0, 100),
+          argsHash: c.argsHash,
+          allowed: c.allowed,
+        }))
+      );
     }
-  });
+  }
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "23505");
+async function saveTask(source: Source, t: TriageResult, records: RunRecord[]): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      const [task] = await tx
+        .insert(aiTasks)
+        .values({
+          title: t.title,
+          summary: t.summary,
+          severity: t.severity,
+          category: t.category,
+          suggestedFix: t.suggestedFix,
+          confidence: t.needsHuman && t.confidence === 0 ? null : t.confidence,
+        })
+        .returning({ id: aiTasks.id });
+      const linked = await tx
+        .insert(aiTaskSources)
+        .values({ taskId: task.id, sourceType: source.type, sourceId: source.id })
+        .onConflictDoNothing()
+        .returning({ id: aiTaskSources.id });
+      if (linked.length === 0) throw new SkipSource(); // someone else got there first: roll back
+      if (source.type === "report") {
+        await tx.update(issueReports).set({ status: "triaged" }).where(eq(issueReports.id, source.id));
+      }
+      await persistRuns(tx, task.id, records);
+    });
+  } catch (error) {
+    if (error instanceof SkipSource) {
+      await persistRuns(db, null, records); // the money was spent; keep the record
+    }
+    throw error;
+  }
 }
+
+async function loadSources(limit: number): Promise<Source[]> {
+  const reports = await db.execute(sql`
+    SELECT r.id, r.page_path, r.description, r.category
+      FROM issue_reports r
+     WHERE r.status = 'new'
+       AND NOT EXISTS (SELECT 1 FROM ai_task_sources s WHERE s.source_type = 'report' AND s.source_id = r.id)
+     ORDER BY r.created_at ASC, r.id ASC
+     LIMIT ${limit}`);
+  const out: Source[] = (reports.rows as Array<Record<string, unknown>>).map((r) => ({
+    type: "report" as const,
+    id: Number(r.id),
+    prompt: buildReportPrompt({
+      id: Number(r.id),
+      pagePath: String(r.page_path),
+      description: String(r.description),
+      category: (r.category as string | null) ?? null,
+    }),
+  }));
+  const room = limit - out.length;
+  if (room > 0) {
+    const errors = await db.execute(sql`
+      SELECT e.id, e.source, e.route, e.message, e.count
+        FROM error_events e
+       WHERE e.last_seen_at > localtimestamp - interval '7 days'
+         AND NOT EXISTS (SELECT 1 FROM ai_task_sources s WHERE s.source_type = 'error' AND s.source_id = e.id)
+       ORDER BY e.count DESC, e.last_seen_at DESC, e.id DESC
+       LIMIT ${room}`);
+    for (const e of errors.rows as Array<Record<string, unknown>>) {
+      out.push({
+        type: "error",
+        id: Number(e.id),
+        prompt: buildErrorPrompt({
+          id: Number(e.id),
+          source: String(e.source),
+          route: String(e.route),
+          message: String(e.message),
+          count: Number(e.count),
+        }),
+      });
+    }
+  }
+  return out;
+}
+
+export interface TriageOptions {
+  config?: AiConfig;
+  provider?: AiProvider;
+  /** Wall-clock budget for the whole run (serverless time limit guard). */
+  timeBudgetMs?: number;
+}
+
+export async function runTriage(options: TriageOptions = {}): Promise<TriageSummary> {
+  const config = options.config ?? getAiConfig();
+  const summary: TriageSummary = {
+    processed: 0, created: 0, needsHuman: 0, failed: 0, escalated: 0,
+    budgetExhausted: false, costUsd: 0,
+  };
+  if (!config.enabled) return { ...summary, skipped: "disabled" };
+
+  const provider = options.provider ?? getProvider(config); // throws AiConfigError if key missing
+  const deadline = Date.now() + (options.timeBudgetMs ?? 40_000);
+
+  // One triage job at a time (second concurrent cron exits immediately).
+  const lockClient = await pool.connect();
+  try {
+    const lock = await lockClient.query("SELECT pg_try_advisory_lock($1) AS ok", [LOCK_KEY]);
+    if (!lock.rows[0]?.ok) return { ...summary, skipped: "locked" };
+    try {
+      await ensureBudgetRow(config.monthlyCapUsd);
+      const sources = await loadSources(config.batchSize);
+      let consecutiveProviderErrors = 0;
+
+      for (const source of sources) {
+        if (Date.now() > deadline) break;
+        const records: RunRecord[] = [];
+        try {
+          let { triage } = await callModel(provider, config.triageModel, source.prompt, records);
+          if (!triage) {
+            ({ triage } = await callModel(provider, config.triageModel, source.prompt, records));
+          }
+          let final = triage;
+          if (final && (final.severity === "high" || final.severity === "critical") &&
+              !final.needsHuman && config.deepModel !== config.triageModel) {
+            try {
+              const deep = await callModel(provider, config.deepModel, source.prompt, records);
+              summary.escalated++;
+              if (deep.triage) final = deep.triage;
+            } catch (e) {
+              if (!(e instanceof BudgetExhausted || e instanceof AiProviderError)) throw e;
+              // keep the cheap result
+            }
+          }
+          const toSave = final ?? needsHumanTask();
+          await saveTask(source, toSave, records);
+          summary.processed++;
+          summary.created++;
+          if (toSave.needsHuman) summary.needsHuman++;
+          consecutiveProviderErrors = 0;
+        } catch (error) {
+          if (error instanceof SkipSource) { summary.processed++; continue; }
+          if (error instanceof BudgetExhausted) {
+            summary.budgetExhausted = true;
+            if (records.length) await persistRuns(db, null, records);
+            break;
+          }
+          if (error instanceof AiProviderError) {
+            summary.failed++;
+            if (records.length) await persistRuns(db, null, records);
+            if (++consecutiveProviderErrors >= 3) break;
+            continue;
+          }
+          throw error;
+        } finally {
+          summary.costUsd += records.reduce((n, r) => n + r.cost, 0);
+        }
+      }
+    } finally {
+      await lockClient.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]);
+    }
+  } finally {
+    lockClient.release();
+  }
+  summary.costUsd = Number(summary.costUsd.toFixed(6));
+  return summary;
+}
+
+export { AiConfigError };

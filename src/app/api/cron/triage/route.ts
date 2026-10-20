@@ -1,41 +1,49 @@
-import crypto from "node:crypto";
-import { NextResponse } from "next/server";
+// src/app/api/cron/triage/route.ts
+//
+// Called by a scheduler (GitHub Actions). Fails closed: with no CRON_SECRET
+// configured, every request is refused. The response carries counts only,
+// never report text.
+import { createHash, timingSafeEqual } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
 import { auditLog } from "@/lib/auditLog";
-import { getAIConfig } from "@/lib/ai/provider";
-import { triageSources } from "@/lib/ai/triage";
+import { AiConfigError, getAiConfig } from "@/lib/ai/provider";
+import { runTriage } from "@/lib/ai/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-export async function GET(req: Request) {
-  return run(req);
+function digest(value: string): Buffer {
+  return createHash("sha256").update(value).digest();
 }
 
-export async function POST(req: Request) {
-  return run(req);
+export function isAuthorizedCron(request: NextRequest, secret = process.env.CRON_SECRET): boolean {
+  if (!secret) return false;
+  const header = request.headers.get("authorization") ?? "";
+  const match = /^Bearer (.+)$/.exec(header);
+  if (!match) return false;
+  return timingSafeEqual(digest(match[1]), digest(secret));
 }
 
-async function run(req: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) return new NextResponse(null, { status: 404 });
-  const auth = req.headers.get("authorization") ?? "";
-  const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!safeEqual(provided, secret)) return new NextResponse(null, { status: 404 });
-
+async function handle(request: NextRequest) {
+  if (!isAuthorizedCron(request)) {
+    auditLog("ai_cron_denied", { path: "/api/cron/triage" });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
-    const config = getAIConfig();
-    if (!config.enabled) return NextResponse.json({ processed: 0, skipped: 0, errors: 0, costUsd: "0.000000", skippedReason: "disabled" });
-    const result = await triageSources();
-    auditLog("ai_triage_completed", { processed: result.processed, skipped: result.skipped, errors: result.errors, costUsd: result.costUsd });
-    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+    if (!getAiConfig().enabled) {
+      return NextResponse.json({ ok: true, skipped: "disabled" });
+    }
+    const summary = await runTriage();
+    auditLog("ai_triage_run", { ...summary });
+    return NextResponse.json({ ok: true, ...summary });
   } catch (error) {
-    auditLog("ai_triage_error", { errorType: error instanceof Error ? error.name : "Error" });
-    return NextResponse.json({ error: "اجرای پردازشگر هوش مصنوعی ناموفق بود" }, { status: 500 });
+    // Never echo error text: it could contain provider or DB details.
+    const kind = error instanceof AiConfigError ? "config" : "internal";
+    console.error("[ai-triage] failed:", error instanceof Error ? error.name : "unknown");
+    return NextResponse.json({ ok: false, error: kind }, { status: 500 });
   }
 }
 
-function safeEqual(a: string, b: string): boolean {
-  const ah = crypto.createHash("sha256").update(a).digest();
-  const bh = crypto.createHash("sha256").update(b).digest();
-  return crypto.timingSafeEqual(ah, bh);
-}
+export const GET = handle;
+export const POST = handle;
