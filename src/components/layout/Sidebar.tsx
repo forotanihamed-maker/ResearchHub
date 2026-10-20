@@ -201,6 +201,7 @@ export function Sidebar() {
                 </p>
               </div>
             </div>
+            <ReportIssueButton />
             <button
               onClick={logout}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors"
