@@ -40,7 +40,12 @@ async function handle(request: NextRequest) {
   } catch (error) {
     // Never echo error text: it could contain provider or DB details.
     const kind = error instanceof AiConfigError ? "config" : "internal";
-    console.error("[ai-triage] failed:", error instanceof Error ? error.name : "unknown");
+    // Only a short, non-sensitive diagnosis: error name plus the underlying
+    // driver code/message (e.g. ECONNREFUSED, 42P01). Never SQL params or bodies.
+    const cause = (error as { cause?: { code?: unknown; message?: unknown } } | null)?.cause;
+    const code = typeof cause?.code === "string" ? cause.code : undefined;
+    const reason = typeof cause?.message === "string" ? cause.message.slice(0, 160) : undefined;
+    console.error("[ai-triage] failed:", error instanceof Error ? error.name : "unknown", code ?? "", reason ?? "");
     return NextResponse.json({ ok: false, error: kind }, { status: 500 });
   }
 }
