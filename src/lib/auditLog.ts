@@ -36,7 +36,9 @@ export type AuditEvent =
   | "issue_report_rate_limited"
   | "browser_error_rate_limited"
   | "ai_cron_denied"
-  | "ai_triage_run";
+  | "ai_triage_run"
+  | "dev_task_status_changed"
+  | "ai_kill_switch_changed";
 
 interface AuditDetails {
   [key: string]: string | number | boolean | null | undefined;

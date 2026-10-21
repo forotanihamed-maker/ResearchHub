@@ -202,6 +202,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUser(data.user);
+
+    // The login response does not carry the dev-panel flag (it comes from
+    // /api/auth/me). Fetch it once so the sidebar item shows without a reload.
+    // Best effort: a failure here must never log the user out.
+    try {
+      const me = await fetch("/api/auth/me", { cache: "no-store" });
+      if (me.ok) {
+        const meData = await me.json();
+        if (meData?.user?.devPanel === true) {
+          setUser((current) => (current ? { ...current, devPanel: true } : current));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
   };
 
   /**

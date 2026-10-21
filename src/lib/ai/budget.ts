@@ -85,3 +85,11 @@ export async function getBudgetStatus(): Promise<BudgetStatus | null> {
     ? { month: row.month, capUsd: row.cap, usedUsd: row.used, killSwitch: row.kill_switch }
     : null;
 }
+
+/** Turns the kill switch on/off for the current month (row is created if missing). */
+export async function setKillSwitch(on: boolean, capUsdIfNew: number): Promise<void> {
+  await ensureBudgetRow(capUsdIfNew);
+  await db.execute(sql`
+    UPDATE ai_budget SET kill_switch = ${on}
+     WHERE month = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')`);
+}
