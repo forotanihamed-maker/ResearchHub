@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Power } from "lucide-react";
+import { Bot, ClipboardCopy, Power } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -145,6 +145,22 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ["dev-tasks"] });
     },
   });
+  const [promptText, setPromptText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const makePrompt = useMutation({
+    mutationFn: () => getJson<{ prompt: string }>(`/api/dev/tasks/${id}/prompt`),
+    onSuccess: (data) => { setPromptText(data.prompt); setCopied(false); },
+  });
+  async function copyPrompt() {
+    if (promptText === null) return;
+    try {
+      await navigator.clipboard.writeText(promptText);
+      setCopied(true);
+    } catch {
+      setCopied(false); // clipboard blocked: the text stays selectable in the box
+    }
+  }
+
   if (q.isLoading) return <Card><CardBody>در حال بارگذاری…</CardBody></Card>;
   if (q.isError || !q.data) return <ErrorState title="جزئیات خوانده نشد" onRetry={() => q.refetch()} />;
   const { task, sources, runs } = q.data;
@@ -211,6 +227,32 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
           ))}
         </div>
         {change.isError && <p className="mt-2 text-sm text-red-700">تغییر وضعیت انجام نشد.</p>}
+
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <h3 className="text-sm font-semibold text-slate-700">پرامپت رفع برای Claude</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            متن آماده برای دادن به مدل کدنویسی. پیش از استفاده بخوانیدش؛ تحلیل خودکار فرضیه است.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" variant="outline" loading={makePrompt.isPending} onClick={() => makePrompt.mutate()}>
+              <ClipboardCopy size={14} />
+              ساخت پرامپت
+            </Button>
+            {promptText !== null && (
+              <Button size="sm" onClick={copyPrompt}>{copied ? "کپی شد ✓" : "کپی"}</Button>
+            )}
+          </div>
+          {makePrompt.isError && <p className="mt-2 text-sm text-red-700">ساخت پرامپت انجام نشد.</p>}
+          {promptText !== null && (
+            <textarea
+              readOnly
+              value={promptText}
+              onFocus={(e) => e.currentTarget.select()}
+              className="mt-2 h-72 w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-xs leading-6"
+              dir="rtl"
+            />
+          )}
+        </div>
       </CardBody>
     </Card>
   );

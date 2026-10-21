@@ -7,7 +7,7 @@ const d = URL ? describe : describe.skip;
 
 const config = (over: Partial<AiConfig> = {}): AiConfig => ({
   enabled: true, provider: "fake", triageModel: "fake-triage", deepModel: "fake-deep",
-  baseUrl: "https://api.deepseek.com", monthlyCapUsd: 5, batchSize: 20, ...over,
+  baseUrl: "https://api.deepseek.com", monthlyCapUsd: 5, batchSize: 20, maxOutputTokens: 700, ...over,
 });
 
 d("triage on real postgres", () => {

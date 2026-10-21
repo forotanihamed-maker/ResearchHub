@@ -20,6 +20,16 @@ import { AiConfigError, AiProviderError } from "@/lib/ai/provider";
 export interface DeepSeekOptions {
   apiKey: string;
   baseUrl: string;
+  /**
+   * "deepseek": sends thinking:{type:"disabled"} (DeepSeek-only parameter).
+   * "openai_compatible": plain OpenAI chat-completions body, for gateways such
+   * as AvalAI that proxy several vendors and may reject unknown fields.
+   */
+  style?: "deepseek" | "openai_compatible";
+  /** Some newer OpenAI models require max_completion_tokens instead of max_tokens. */
+  tokenParam?: "max_tokens" | "max_completion_tokens";
+  /** Some models reject an explicit temperature. */
+  omitTemperature?: boolean;
   timeoutMs?: number;
   /** Injected in tests. */
   fetchImpl?: typeof fetch;
@@ -49,7 +59,10 @@ export function normalizeBaseUrl(raw: string): string {
 }
 
 export class DeepSeekProvider implements AiProvider {
-  readonly name = "deepseek";
+  readonly name: string;
+  private readonly style: "deepseek" | "openai_compatible";
+  private readonly tokenParam: "max_tokens" | "max_completion_tokens";
+  private readonly omitTemperature: boolean;
   private readonly endpoint: string;
   private readonly apiKey: string;
   private readonly timeoutMs: number;
@@ -59,6 +72,10 @@ export class DeepSeekProvider implements AiProvider {
   constructor(options: DeepSeekOptions) {
     this.endpoint = `${normalizeBaseUrl(options.baseUrl)}/chat/completions`;
     this.apiKey = options.apiKey;
+    this.style = options.style ?? "deepseek";
+    this.name = this.style;
+    this.tokenParam = options.tokenParam ?? "max_tokens";
+    this.omitTemperature = options.omitTemperature ?? false;
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleep =
@@ -66,7 +83,7 @@ export class DeepSeekProvider implements AiProvider {
   }
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
-    const body = JSON.stringify({
+    const payload: Record<string, unknown> = {
       model: req.model,
       messages: [
         { role: "system", content: req.system },
@@ -83,11 +100,12 @@ export class DeepSeekProvider implements AiProvider {
         },
       ],
       tool_choice: { type: "function", function: { name: req.tool.name } },
-      thinking: { type: "disabled" },
-      temperature: 0,
-      max_tokens: req.maxOutputTokens,
+      [this.tokenParam]: req.maxOutputTokens,
       stream: false,
-    });
+    };
+    if (this.style === "deepseek") payload.thinking = { type: "disabled" };
+    if (!this.omitTemperature) payload.temperature = 0;
+    const body = JSON.stringify(payload);
 
     // One retry for network errors, 429 and 5xx. Never for other 4xx.
     let lastError: AiProviderError | null = null;
@@ -164,8 +182,11 @@ export function parseCompletion(data: unknown): CompletionResult {
   }
 
   const usage = (root.usage ?? {}) as Record<string, unknown>;
+  const first = choices[0] as { finish_reason?: unknown } | undefined;
   return {
     toolCalls,
+    finishReason: typeof first?.finish_reason === "string" ? first.finish_reason.slice(0, 40) : undefined,
+    hadText: typeof message?.content === "string" && message.content.trim().length > 0,
     inputTokens: asCount(usage.prompt_tokens),
     outputTokens: asCount(usage.completion_tokens),
   };

@@ -27,10 +27,9 @@ import {
   buildErrorPrompt,
   buildReportPrompt,
 } from "@/lib/ai/prompts";
-import { validateTriage, type TriageResult } from "@/lib/ai/validate";
+import { explainTriageFailure, validateTriage, type TriageResult } from "@/lib/ai/validate";
 import { costUsd, ensureBudgetRow, estimateInputTokens, reserve, settle } from "@/lib/ai/budget";
 
-const MAX_OUTPUT_TOKENS = 700;
 const LOCK_KEY = 6_000_001; // arbitrary app-wide advisory-lock id for the triage job
 
 export interface TriageSummary {
@@ -44,6 +43,8 @@ export interface TriageSummary {
   costUsd: number;
   /** HTTP status of the last provider failure (null = network/timeout). Never a body. */
   lastProviderStatus?: number | null;
+  /** Why the last model answer was rejected (field/flag names only, never content). */
+  lastInvalidReason?: string;
 }
 
 interface RunRecord {
@@ -58,6 +59,8 @@ type Source =
   | { type: "report"; id: number; prompt: string }
   | { type: "error"; id: number; prompt: string };
 
+let lastInvalidReason: string | undefined;
+
 class SkipSource extends Error {}
 class BudgetExhausted extends Error {}
 
@@ -68,9 +71,10 @@ async function callModel(
   provider: AiProvider,
   model: string,
   user: string,
-  records: RunRecord[]
+  records: RunRecord[],
+  maxOutputTokens: number
 ): Promise<{ result: CompletionResult; triage: TriageResult | null }> {
-  const est = costUsd(model, estimateInputTokens(SYSTEM_PROMPT, user), MAX_OUTPUT_TOKENS);
+  const est = costUsd(model, estimateInputTokens(SYSTEM_PROMPT, user), maxOutputTokens);
   if (!(await reserve(est))) throw new BudgetExhausted();
 
   let result: CompletionResult;
@@ -80,7 +84,7 @@ async function callModel(
       system: SYSTEM_PROMPT,
       user,
       tool: TRIAGE_TOOL,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      maxOutputTokens,
     });
   } catch (error) {
     await settle(est, 0); // nothing was billed for a failed call
@@ -103,7 +107,13 @@ async function callModel(
 
   // Only the allowed tool is considered; anything else is ignored (and logged above).
   const allowed = result.toolCalls.find((c) => c.name === TRIAGE_TOOL_NAME);
-  return { result, triage: allowed ? validateTriage(allowed.argumentsJson) : null };
+  const triage = allowed ? validateTriage(allowed.argumentsJson) : null;
+  if (!triage) {
+    const reason = `${explainTriageFailure(allowed?.argumentsJson)}; finish=${result.finishReason ?? "?"}; text=${result.hadText ? "yes" : "no"}; tools=${result.toolCalls.length}; out_tokens=${result.outputTokens}`;
+    lastInvalidReason = reason;
+    console.warn("[ai-triage] invalid model output:", reason);
+  }
+  return { result, triage };
 }
 
 function needsHumanTask(): TriageResult {
@@ -237,6 +247,7 @@ export async function runTriage(options: TriageOptions = {}): Promise<TriageSumm
   if (!config.enabled) return { ...summary, skipped: "disabled" };
 
   const provider = options.provider ?? getProvider(config); // throws AiConfigError if key missing
+  lastInvalidReason = undefined;
   const deadline = Date.now() + (options.timeBudgetMs ?? 40_000);
 
   // One triage job at a time (second concurrent cron exits immediately).
@@ -253,15 +264,15 @@ export async function runTriage(options: TriageOptions = {}): Promise<TriageSumm
         if (Date.now() > deadline) break;
         const records: RunRecord[] = [];
         try {
-          let { triage } = await callModel(provider, config.triageModel, source.prompt, records);
+          let { triage } = await callModel(provider, config.triageModel, source.prompt, records, config.maxOutputTokens);
           if (!triage) {
-            ({ triage } = await callModel(provider, config.triageModel, source.prompt, records));
+            ({ triage } = await callModel(provider, config.triageModel, source.prompt, records, config.maxOutputTokens));
           }
           let final = triage;
           if (final && (final.severity === "high" || final.severity === "critical") &&
               !final.needsHuman && config.deepModel !== config.triageModel) {
             try {
-              const deep = await callModel(provider, config.deepModel, source.prompt, records);
+              const deep = await callModel(provider, config.deepModel, source.prompt, records, config.maxOutputTokens);
               summary.escalated++;
               if (deep.triage) final = deep.triage;
             } catch (e) {
@@ -302,6 +313,7 @@ export async function runTriage(options: TriageOptions = {}): Promise<TriageSumm
     lockClient.release();
   }
   summary.costUsd = Number(summary.costUsd.toFixed(6));
+  if (summary.needsHuman > 0 && lastInvalidReason) summary.lastInvalidReason = lastInvalidReason;
   return summary;
 }
 

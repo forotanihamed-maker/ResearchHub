@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/db", () => ({ db: {}, pool: {} }));
 
 import { maskForModel } from "@/lib/ai/mask";
-import { validateTriage } from "@/lib/ai/validate";
+import { explainTriageFailure, validateTriage } from "@/lib/ai/validate";
 import { buildErrorPrompt, buildReportPrompt, SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { AiConfigError, getAiConfig, getApiKey, getProvider } from "@/lib/ai/provider";
 import { DeepSeekProvider, normalizeBaseUrl, parseCompletion } from "@/lib/ai/providers/deepseek";
@@ -74,12 +74,28 @@ describe("validateTriage", () => {
   });
 });
 
+describe("explainTriageFailure", () => {
+  it("names the failing field and never echoes content", () => {
+    expect(explainTriageFailure(undefined)).toBe("no_tool_call");
+    expect(explainTriageFailure("")).toBe("empty_arguments");
+    expect(explainTriageFailure("{x")).toBe("arguments_not_json");
+    expect(explainTriageFailure(JSON.stringify({ title: "t", summary: "s", severity: "SECRET-VALUE" }))).toBe("bad_severity");
+    expect(explainTriageFailure(JSON.stringify({ title: "t", summary: "s", severity: "low", category: "bug", confidence: 7, needsHuman: false }))).toBe("bad_confidence");
+  });
+});
+
 describe("config and provider selection", () => {
   it("defaults to fake and a small cap", () => {
     const c = getAiConfig({});
     expect(c.provider).toBe("fake");
     expect(c.monthlyCapUsd).toBe(5);
     expect(c.enabled).toBe(true);
+  });
+  it("max output tokens: default 700, env override, clamped", () => {
+    expect(getAiConfig({}).maxOutputTokens).toBe(700);
+    expect(getAiConfig({ AI_MAX_OUTPUT_TOKENS: "3000" }).maxOutputTokens).toBe(3000);
+    expect(getAiConfig({ AI_MAX_OUTPUT_TOKENS: "99999999" }).maxOutputTokens).toBe(8000);
+    expect(getAiConfig({ AI_MAX_OUTPUT_TOKENS: "5" }).maxOutputTokens).toBe(200);
   });
   it("AI_ENABLED=false disables", () => {
     expect(getAiConfig({ AI_ENABLED: "false" }).enabled).toBe(false);
@@ -148,9 +164,45 @@ describe("DeepSeekProvider", () => {
     const err = await p.complete(req).catch((e) => e);
     expect(String(err.message)).not.toContain(SECRET);
   });
-  it("parseCompletion tolerates garbage", () => {
-    expect(parseCompletion(null)).toEqual({ toolCalls: [], inputTokens: 0, outputTokens: 0 });
+  it("parseCompletion tolerates garbage and reports finish reason / text presence", () => {
+    expect(parseCompletion(null)).toMatchObject({ toolCalls: [], inputTokens: 0, outputTokens: 0, hadText: false });
+    const r = parseCompletion({ choices: [{ finish_reason: "length", message: { content: "hello" } }] });
+    expect(r.finishReason).toBe("length");
+    expect(r.hadText).toBe(true);
     expect(parseCompletion({ choices: [{ message: { tool_calls: [{ function: { name: "x" } }] } }] }).toolCalls[0].argumentsJson).toBe("");
+  });
+});
+
+describe("openai_compatible (gateway) mode", () => {
+  const env = { AI_PROVIDER: "openai_compatible", AI_BASE_URL: "https://api.avalai.ir/v1", AI_MODEL_TRIAGE: "m1", AI_API_KEY: "gw-key" };
+  it("requires base url and model; never defaults to DeepSeek's host", () => {
+    expect(() => getAiConfig({ AI_PROVIDER: "openai_compatible", AI_MODEL_TRIAGE: "m" })).toThrow(/AI_BASE_URL/);
+    expect(() => getAiConfig({ AI_PROVIDER: "openai_compatible", AI_BASE_URL: "https://x.ir/v1" })).toThrow(/AI_MODEL_TRIAGE/);
+  });
+  it("uses only AI_API_KEY (a DeepSeek key is never sent to a gateway)", () => {
+    const c = getAiConfig({ ...env, Deep_Seek_ApiKey: "deepseek-key" });
+    expect(c.deepModel).toBe("m1"); // no escalation unless AI_MODEL_DEEP is set
+    expect(() => getProvider(c, { ...env, AI_API_KEY: undefined, Deep_Seek_ApiKey: "deepseek-key" })).toThrow(/AI_API_KEY/);
+    expect(getProvider(c, env).name).toBe("openai_compatible");
+  });
+  it("posts a plain OpenAI body to {base}/chat/completions", async () => {
+    const ok = { choices: [{ message: { tool_calls: [{ function: { name: "submit_triage", arguments: "{}" } }] } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+    const fetchImpl = vi.fn().mockImplementation(async () => new Response(JSON.stringify(ok), { status: 200 }));
+    const r = { model: "m1", system: "s", user: "u", tool: { name: "submit_triage", description: "d", parameters: {} }, maxOutputTokens: 50 };
+    const p = new DeepSeekProvider({ apiKey: "gw-key", baseUrl: "https://api.avalai.ir/v1", style: "openai_compatible", fetchImpl });
+    await p.complete(r);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.avalai.ir/v1/chat/completions");
+    const body = JSON.parse(init.body);
+    expect(body.thinking).toBeUndefined();
+    expect(body.max_tokens).toBe(50);
+    expect(body.temperature).toBe(0);
+    const p2 = new DeepSeekProvider({ apiKey: "k", baseUrl: "https://api.avalai.ir/v1", style: "openai_compatible", tokenParam: "max_completion_tokens", omitTemperature: true, fetchImpl });
+    await p2.complete(r);
+    const body2 = JSON.parse(fetchImpl.mock.calls[1][1].body);
+    expect(body2.max_completion_tokens).toBe(50);
+    expect(body2.max_tokens).toBeUndefined();
+    expect(body2.temperature).toBeUndefined();
   });
 });
 

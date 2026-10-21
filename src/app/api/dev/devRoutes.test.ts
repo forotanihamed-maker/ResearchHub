@@ -20,6 +20,7 @@ vi.mock("@/lib/ai/budget", () => ({
 
 import { GET as listGet } from "@/app/api/dev/tasks/route";
 import { GET as oneGet, PATCH as onePatch } from "@/app/api/dev/tasks/[id]/route";
+import { GET as promptGet } from "@/app/api/dev/tasks/[id]/prompt/route";
 import { GET as budgetGet, PATCH as budgetPatch } from "@/app/api/dev/budget/route";
 import { setKillSwitch } from "@/lib/ai/budget";
 
@@ -41,6 +42,7 @@ describe("dev panel API guard", () => {
     expect((await listGet(new NextRequest("http://x/api/dev/tasks"))).status).toBe(404);
     expect((await oneGet(req(), ctx("1"))).status).toBe(404);
     expect((await onePatch(req({ status: "resolved" }), ctx("1"))).status).toBe(404);
+    expect((await promptGet(req(), ctx("1"))).status).toBe(404);
     expect((await budgetGet()).status).toBe(404);
     expect((await budgetPatch(req({ killSwitch: true }))).status).toBe(404);
     expect(update).not.toHaveBeenCalled();
@@ -54,6 +56,7 @@ describe("dev panel API guard", () => {
     expect((await onePatch(req(null, "{bad"), ctx("1"))).status).toBe(400);
     expect((await onePatch(req({ status: "open" }), ctx("abc"))).status).toBe(400);
     expect((await onePatch(req({ status: "open" }), ctx("-3"))).status).toBe(400);
+    expect((await promptGet(req(), ctx("abc"))).status).toBe(400);
     expect((await budgetPatch(req({ killSwitch: "yes" }))).status).toBe(400);
     expect((await budgetPatch(req({ cap: 9999 }))).status).toBe(400);
     expect(update).not.toHaveBeenCalled();

@@ -27,6 +27,7 @@ import {
   reportServerError,
   sanitizeRoute,
   sanitizeSensitiveText,
+  describeErrorCause,
 } from "@/lib/errorCapture";
 
 describe("errorCapture", () => {
@@ -104,5 +105,31 @@ describe("errorCapture", () => {
     const text = JSON.stringify(execute.mock.calls[0][0]);
     expect(text).toMatch(/last_seen_at DESC/);
     expect(text).not.toMatch(/last_seen_at ASC/);
+  });
+});
+
+describe("reportServerError stores the hidden cause (masked)", () => {
+  it("appends cause and masks secrets inside it", async () => {
+    returning.mockResolvedValue([{ count: 2 }]);
+    const err = new Error("Failed query: select 1", {
+      cause: Object.assign(new Error("password authentication failed for user bob@x.io"), { code: "28P01" }),
+    });
+    await reportServerError("/api/x", err);
+    const stored = (values.mock.calls.at(-1) as unknown as [{ message: string }])[0].message;
+    expect(stored).toContain("cause: 28P01");
+    expect(stored).not.toContain("bob@x.io");
+  });
+});
+
+describe("describeErrorCause", () => {
+  it("returns the hidden driver reason on a second line", () => {
+    const err = new Error("Failed query: select 1", { cause: Object.assign(new Error("Connection terminated due to connection timeout"), { code: "ETIMEDOUT" }) });
+    expect(describeErrorCause(err)).toBe("\ncause: ETIMEDOUT Connection terminated due to connection timeout");
+  });
+  it("is empty without a cause and never throws on odd input", () => {
+    expect(describeErrorCause(new Error("x"))).toBe("");
+    expect(describeErrorCause(null)).toBe("");
+    expect(describeErrorCause({ cause: "string" })).toBe("");
+    expect(describeErrorCause({ cause: {} })).toBe("");
   });
 });

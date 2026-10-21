@@ -92,11 +92,32 @@ async function upsertError(row: ErrorRow): Promise<void> {
   if (rows?.[0]?.count === 1) await cleanupOldErrorEvents();
 }
 
+/**
+ * ORM errors (e.g. Drizzle's "Failed query: ...") hide the real reason in
+ * `cause` (connection timeout, ECONNRESET, a Postgres error code...). Without
+ * it a triage tool can only guess, so it is appended on a second line. It goes
+ * through the same masking as everything else.
+ */
+export function describeErrorCause(error: unknown): string {
+  const cause = (error as { cause?: unknown } | null)?.cause;
+  if (!cause || typeof cause !== "object") return "";
+  const code = (cause as { code?: unknown }).code;
+  const message = (cause as { message?: unknown }).message;
+  const parts = [
+    typeof code === "string" ? code.slice(0, 40) : "",
+    typeof message === "string" ? message.slice(0, 300) : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? `\ncause: ${parts.join(" ")}` : "";
+}
+
 export async function reportServerError(route: unknown, error: unknown): Promise<void> {
   try {
     const cleanRoute = sanitizeRoute(route);
     const rawStack = error instanceof Error ? error.stack ?? "" : "";
-    const message = sanitizeSensitiveText(error);
+    const base = error instanceof Error ? error.message : String(error ?? "");
+    const message = sanitizeSensitiveText(
+      base.slice(0, Math.max(0, MAX_MESSAGE_LENGTH - 350)) + describeErrorCause(error)
+    );
     const fingerprint = await buildErrorFingerprint(cleanRoute, error, rawStack);
     const stackHash = await buildStackHash(rawStack);
 

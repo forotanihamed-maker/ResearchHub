@@ -56,3 +56,28 @@ export function validateTriage(argumentsJson: string): TriageResult | null {
     evidence,
   };
 }
+
+/**
+ * Names the FIRST reason a tool-call argument string is invalid, without ever
+ * including its content. For logs and the cron summary only.
+ */
+export function explainTriageFailure(argumentsJson: string | undefined): string {
+  if (argumentsJson === undefined) return "no_tool_call";
+  if (argumentsJson.length === 0) return "empty_arguments";
+  let raw: unknown;
+  try {
+    raw = JSON.parse(argumentsJson);
+  } catch {
+    return "arguments_not_json";
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return "arguments_not_object";
+  const o = raw as Record<string, unknown>;
+  const nonEmpty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+  if (!nonEmpty(o.title)) return "bad_title";
+  if (!nonEmpty(o.summary)) return "bad_summary";
+  if (!(SEVERITIES as readonly string[]).includes(o.severity as string)) return "bad_severity";
+  if (!(CATEGORIES as readonly string[]).includes(o.category as string)) return "bad_category";
+  if (typeof o.confidence !== "number" || !Number.isFinite(o.confidence) || o.confidence < 0 || o.confidence > 1) return "bad_confidence";
+  if (typeof o.needsHuman !== "boolean") return "bad_needsHuman";
+  return "bad_optional_field";
+}
