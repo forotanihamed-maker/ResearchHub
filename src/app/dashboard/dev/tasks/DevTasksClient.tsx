@@ -71,6 +71,7 @@ interface BudgetResponse {
   budget: { month: string; capUsd: number; usedUsd: number; killSwitch: boolean } | null;
   runsThisMonth: number;
   enabled: boolean;
+  configError?: boolean;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -98,7 +99,15 @@ function BudgetBar() {
     onSuccess: (data) => qc.setQueryData(["dev-budget"], data),
   });
   if (q.isLoading) return <Card><CardBody>در حال بارگذاری بودجه…</CardBody></Card>;
-  if (q.isError || !q.data?.budget) return <ErrorState title="بودجه خوانده نشد" onRetry={() => q.refetch()} />;
+  if (q.isError || !q.data?.budget) {
+    return (
+      <ErrorState
+        title="بودجه خوانده نشد"
+        description={q.error instanceof Error && q.error.message === "500" ? "خطای سرور؛ لاگ Vercel را ببینید." : undefined}
+        onRetry={() => q.refetch()}
+      />
+    );
+  }
   const b = q.data.budget;
   const pct = b.capUsd > 0 ? Math.min(100, (b.usedUsd / b.capUsd) * 100) : 0;
   return (
@@ -113,6 +122,7 @@ function BudgetBar() {
             <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden" dir="ltr">
               <div className={pct > 80 ? "h-full bg-red-500" : "h-full bg-indigo-500"} style={{ width: `${pct}%` }} />
             </div>
+            {q.data.configError && <p className="mt-1 text-xs text-red-700">تنظیمات هوش مصنوعی روی سرور ناقص یا نامعتبر است (AI_PROVIDER، AI_BASE_URL، AI_MODEL_TRIAGE، AI_API_KEY)؛ پردازش خودکار تا اصلاح آن کار نمی‌کند.</p>}
             {!q.data.enabled && <p className="mt-1 text-xs text-amber-700">AI_ENABLED=false روی سرور تنظیم شده است.</p>}
           </div>
           <Button

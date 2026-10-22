@@ -13,15 +13,34 @@ import { devNotFoundResponse, getDevApiUser } from "@/lib/devAccess";
 export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "no-store" };
 
+/**
+ * The budget view must still work when the AI settings are incomplete (that is
+ * exactly when the owner needs to look at it), so a config error is reported
+ * as a flag instead of failing the request.
+ */
+function readConfig(): { cap: number; enabled: boolean; configError: boolean } {
+  try {
+    const c = getAiConfig();
+    return { cap: c.monthlyCapUsd, enabled: c.enabled, configError: false };
+  } catch {
+    const cap = Number(process.env.AI_MONTHLY_CAP_USD);
+    return {
+      cap: Number.isFinite(cap) && cap > 0 ? cap : 5,
+      enabled: (process.env.AI_ENABLED ?? "true").trim().toLowerCase() !== "false",
+      configError: true,
+    };
+  }
+}
+
 async function snapshot() {
-  const cap = getAiConfig().monthlyCapUsd;
+  const { cap, enabled, configError } = readConfig();
   await ensureBudgetRow(cap);
   const status = await getBudgetStatus();
   const [runs] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(aiAnalysisRuns)
     .where(sql`to_char(${aiAnalysisRuns.createdAt}, 'YYYY-MM') = to_char(localtimestamp, 'YYYY-MM')`);
-  return { budget: status, runsThisMonth: runs?.n ?? 0, enabled: getAiConfig().enabled };
+  return { budget: status, runsThisMonth: runs?.n ?? 0, enabled, configError };
 }
 
 export async function GET() {
@@ -50,7 +69,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "killSwitch باید true یا false باشد" }, { status: 400, headers: NO_STORE });
   }
   try {
-    await setKillSwitch(kill, getAiConfig().monthlyCapUsd);
+    await setKillSwitch(kill, readConfig().cap);
     auditLog("ai_kill_switch_changed", { userId: user.userId, killSwitch: kill });
     return NextResponse.json(await snapshot(), { headers: NO_STORE });
   } catch (error) {
