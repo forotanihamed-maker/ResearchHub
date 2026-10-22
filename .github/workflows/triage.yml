@@ -17,6 +17,18 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           test -n "$APP_URL" && test -n "$CRON_SECRET" || { echo "APP_URL/CRON_SECRET not set"; exit 1; }
-          curl --fail --silent --show-error --max-time 90 \
+          case "$APP_URL" in
+            https://*) ;;
+            *) echo "APP_URL must start with https://"; exit 1 ;;
+          esac
+          APP_URL="${APP_URL%/}"
+          code=$(curl --silent --show-error --max-time 90 \
+            -o response.txt -w "%{http_code}" \
             -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/cron/triage"
+            "$APP_URL/api/cron/triage")
+          echo "HTTP $code"
+          head -c 600 response.txt; echo
+          # Fail loudly unless the endpoint itself answered with {"ok":true,...}.
+          if [ "$code" != "200" ] || ! grep -q '"ok":true' response.txt; then
+            echo "Triage endpoint did not answer as expected"; exit 1
+          fi
