@@ -1,5 +1,6 @@
 // GET   /api/dev/tasks/:id — task, its source text and analysis runs
 // PATCH /api/dev/tasks/:id — change status only (body: {status})
+// DELETE /api/dev/tasks/:id — only for resolved/dismissed tasks (see devTaskDelete.ts)
 // Source rows deliberately do NOT join users: the panel never shows who wrote a report.
 import { NextRequest, NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
@@ -8,6 +9,7 @@ import { aiTasks } from "@/db/schema";
 import { auditLog } from "@/lib/auditLog";
 import { devNotFoundResponse, getDevApiUser } from "@/lib/devAccess";
 import { isTaskStatus } from "@/lib/devTasks";
+import { deleteFinishedTask } from "@/lib/devTaskDelete";
 import { loadTaskDetail } from "@/lib/devTaskDetail";
 import { parseId } from "@/lib/validation";
 
@@ -63,6 +65,27 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: true, status }, { headers: NO_STORE });
   } catch (error) {
     console.error("Dev task PATCH error:", error instanceof Error ? error.name : "unknown");
+    return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500, headers: NO_STORE });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const user = await getDevApiUser("api/dev/tasks/id");
+  if (!user) return devNotFoundResponse();
+
+  const id = parseId((await params).id);
+  if (id === null) return NextResponse.json({ error: "شناسه نامعتبر است" }, { status: 400, headers: NO_STORE });
+
+  try {
+    const result = await deleteFinishedTask(id);
+    if (result === "not_found") return NextResponse.json({ error: "تسک یافت نشد" }, { status: 404, headers: NO_STORE });
+    if (result === "not_finished") {
+      return NextResponse.json({ error: "فقط تسک «انجام‌شده» یا «رد‌شده» حذف می‌شود" }, { status: 409, headers: NO_STORE });
+    }
+    auditLog("dev_task_deleted", { userId: user.userId, taskId: id });
+    return NextResponse.json({ ok: true }, { headers: NO_STORE });
+  } catch (error) {
+    console.error("Dev task DELETE error:", error instanceof Error ? error.name : "unknown");
     return NextResponse.json({ error: "خطای داخلی سرور" }, { status: 500, headers: NO_STORE });
   }
 }

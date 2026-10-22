@@ -89,6 +89,11 @@ async function patchJson<T>(url: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function deleteJson(url: string): Promise<void> {
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) throw new Error(String(res.status));
+}
+
 const fa = (n: number) => n.toLocaleString("fa-IR");
 
 function BudgetBar() {
@@ -153,6 +158,14 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["dev-task", id] });
       qc.invalidateQueries({ queryKey: ["dev-tasks"] });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => deleteJson(`/api/dev/tasks/${id}`),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ["dev-task", id] });
+      qc.invalidateQueries({ queryKey: ["dev-tasks"] });
+      onClose();
     },
   });
   const [promptText, setPromptText] = useState<string | null>(null);
@@ -237,6 +250,21 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
           ))}
         </div>
         {change.isError && <p className="mt-2 text-sm text-red-700">تغییر وضعیت انجام نشد.</p>}
+        {(task.status === "resolved" || task.status === "dismissed") && (
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              loading={remove.isPending}
+              onClick={() => {
+                if (window.confirm("این تسک برای همیشه حذف شود؟ (اگر منبعش یک خطا بوده، همان رویداد خطا هم پاک می‌شود. گزارش کاربر می‌ماند.)")) remove.mutate();
+              }}
+            >
+              حذف تسک
+            </Button>
+            {remove.isError && <p className="mt-2 text-sm text-red-700">حذف انجام نشد.</p>}
+          </div>
+        )}
 
         <div className="mt-5 border-t border-slate-100 pt-4">
           <h3 className="text-sm font-semibold text-slate-700">پرامپت رفع برای Claude</h3>

@@ -38,6 +38,7 @@ export type AuditEvent =
   | "ai_cron_denied"
   | "ai_triage_run"
   | "dev_task_status_changed"
+  | "dev_task_deleted"
   | "ai_kill_switch_changed";
 
 interface AuditDetails {
