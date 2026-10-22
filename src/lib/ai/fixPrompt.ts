@@ -7,7 +7,7 @@
 // capped and placed inside a clearly delimited block that the prompt declares
 // to be DATA, because a coding agent has write access and must not obey
 // instructions hidden in a user report.
-import { maskForModel } from "@/lib/ai/mask";
+import { maskForModel, maskLine } from "@/lib/ai/mask";
 import type { DevTaskSource } from "@/lib/devTaskDetail";
 import { suggestFiles } from "@/lib/ai/fileHints";
 
@@ -32,15 +32,15 @@ function sourceBlock(sources: DevTaskSource[]): string {
       if (s.type === "report") {
         return [
           `نوع: گزارش کاربر #${s.id}`,
-          `صفحه: ${maskForModel(s.pagePath ?? "", 300)}`,
-          s.category ? `دسته‌ی انتخابی کاربر: ${maskForModel(s.category, 50)}` : "",
+          `صفحه: ${maskLine(s.pagePath ?? "", 300)}`,
+          s.category ? `دسته‌ی انتخابی کاربر: ${maskLine(s.category, 50)}` : "",
           "متن:",
           maskForModel(s.description ?? "", 2000),
         ].filter(Boolean).join("\n");
       }
       return [
         `نوع: خطای ${s.source === "client" ? "مرورگر" : "سرور"} #${s.id}`,
-        `مسیر: ${maskForModel(s.route ?? "", 255)}`,
+        `مسیر: ${maskLine(s.route ?? "", 255)}`,
         `تعداد وقوع: ${Math.max(0, Math.floor(s.count ?? 0))}`,
         "پیام:",
         maskForModel(s.message ?? "", 1500),
@@ -94,7 +94,7 @@ export function buildFixPrompt(task: FixPromptTask, sources: DevTaskSource[]): s
     "</untrusted_source>",
     "",
     "<untrusted_analysis>",
-    `عنوان: ${maskForModel(task.title, 255)}`,
+    `عنوان: ${maskLine(task.title, 255)}`,
     "خلاصه:",
     maskForModel(task.summary, 2000),
     "پیشنهاد رفع:",

@@ -2,7 +2,7 @@
 //
 // Model output is untrusted. Anything that does not match the schema exactly is
 // rejected (no coercion), and accepted text is masked and length-capped again.
-import { maskForModel } from "@/lib/ai/mask";
+import { maskForModel, maskLine } from "@/lib/ai/mask";
 import { CATEGORIES, SEVERITIES } from "@/lib/ai/prompts";
 
 export type Severity = (typeof SEVERITIES)[number];
@@ -46,7 +46,7 @@ export function validateTriage(argumentsJson: string): TriageResult | null {
 
   const fix = typeof o.suggestedFix === "string" ? maskForModel(o.suggestedFix, 2000).trim() : "";
   return {
-    title: maskForModel(o.title, 255).trim() || "بدون عنوان",
+    title: maskLine(o.title, 255) || "بدون عنوان",
     summary: maskForModel(o.summary, 2000).trim(),
     severity: o.severity as Severity,
     category: o.needsHuman ? "needs_human" : (o.category as string),

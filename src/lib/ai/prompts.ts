@@ -4,7 +4,7 @@
 // that the provider's prefix cache can reuse it. User-controlled text only ever
 // appears inside <user_report> / <error_event> data blocks.
 import type { ToolDef } from "@/lib/ai/provider";
-import { maskForModel } from "@/lib/ai/mask";
+import { maskForModel, maskLine } from "@/lib/ai/mask";
 
 export const TRIAGE_TOOL_NAME = "submit_triage";
 
@@ -75,8 +75,8 @@ export interface ErrorInput {
 export function buildReportPrompt(r: ReportInput): string {
   return [
     `شناسه: report#${r.id}`,
-    `صفحه: ${maskForModel(r.pagePath, 300)}`,
-    r.category ? `دسته‌ی انتخابی کاربر: ${maskForModel(r.category, 50)}` : "",
+    `صفحه: ${maskLine(r.pagePath, 300)}`,
+    r.category ? `دسته‌ی انتخابی کاربر: ${maskLine(r.category, 50)}` : "",
     "<user_report>",
     maskForModel(r.description, 2000),
     "</user_report>",
@@ -89,7 +89,7 @@ export function buildErrorPrompt(e: ErrorInput): string {
   return [
     `شناسه: error#${e.id}`,
     `منبع: ${e.source === "client" ? "مرورگر" : "سرور"}`,
-    `مسیر: ${maskForModel(e.route, 255)}`,
+    `مسیر: ${maskLine(e.route, 255)}`,
     `تعداد وقوع: ${Math.max(0, Math.floor(e.count))}`,
     "<error_event>",
     maskForModel(e.message, 1500),
