@@ -9,6 +9,7 @@
 // instructions hidden in a user report.
 import { maskForModel } from "@/lib/ai/mask";
 import type { DevTaskSource } from "@/lib/devTaskDetail";
+import { suggestFiles } from "@/lib/ai/fileHints";
 
 export interface FixPromptTask {
   id: number;
@@ -48,6 +49,23 @@ function sourceBlock(sources: DevTaskSource[]): string {
     .join("\n\n---\n\n");
 }
 
+function hintsBlock(task: FixPromptTask, sources: DevTaskSource[]): string {
+  const routes = sources.map((s) => (s.type === "report" ? s.pagePath : s.route)).filter((r): r is string => !!r);
+  const text = [
+    task.title,
+    task.summary,
+    ...sources.map((s) => (s.type === "report" ? s.description : s.message) ?? ""),
+  ].join(" ");
+  const hints = suggestFiles({ routes, text });
+  if (hints.length === 0) return "";
+  return [
+    "## فایل‌های احتمالی (حدس خودکار — فقط نقطه‌ی شروع)",
+    "این فهرست از روی مسیر صفحه و کلمه‌های گزارش ساخته شده، نه از روی خواندن کد. ممکن است ناقص یا نادرست باشد؛ اگر علت جای دیگری بود، بگو.",
+    ...hints.map((h) => `- \`${h.path}\` (${h.reason})`),
+    "",
+  ].join("\n");
+}
+
 export function buildFixPrompt(task: FixPromptTask, sources: DevTaskSource[]): string {
   const confidence = task.confidence === null ? "نامشخص" : `${Math.round(task.confidence * 100)}٪`;
   // A fallback task (analysis failed) has confidence NULL; a model that
@@ -83,6 +101,7 @@ export function buildFixPrompt(task: FixPromptTask, sources: DevTaskSource[]): s
     task.suggestedFix ? maskForModel(task.suggestedFix, 2000) : "(پیشنهادی ثبت نشده)",
     "</untrusted_analysis>",
     "",
+    hintsBlock(task, sources),
     "## قواعد کار",
     "1. اول علت ریشه‌ای را در کد پیدا کن (یا مشکل را بازتولید کن)، بعد تغییر بده. اگر فرضیه‌ی بالا غلط بود، بگو.",
     "2. کمترین تغییر لازم؛ بدون بازنویسی یا refactor نامرتبط.",
