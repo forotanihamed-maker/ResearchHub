@@ -267,7 +267,7 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
 
         {runs.length > 0 && (
           <p className="mt-3 text-xs text-slate-500">
-            تحلیل: {runs.map((r) => r.model).join(" ← ")} · هزینه ${runs.reduce((n, r) => n + r.costUsd, 0).toFixed(5)}
+            تحلیل: {Object.entries(runs.reduce<Record<string, number>>((m, r) => ({ ...m, [r.model]: (m[r.model] ?? 0) + 1 }), {})).map(([model, n]) => `${model} ×${n}`).join("، ")} · هزینه (تخمینی) ${runs.reduce((n, r) => n + r.costUsd, 0).toFixed(5)}
           </p>
         )}
 

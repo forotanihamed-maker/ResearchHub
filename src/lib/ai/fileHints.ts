@@ -109,6 +109,24 @@ export function normalizeText(input: string): string {
     .replace(/\s+/g, " ");
 }
 
+const PLURAL_SUFFIX = /^(ها|های|هایی|ی)$/;
+
+/**
+ * Word-based match (not substring): "کار" must not fire on "کاربر".
+ * Multi-word keywords use plain containment; short words (<4 letters) must be
+ * an exact token or take a plural/ezafe suffix, longer ones may continue.
+ */
+function textHasWord(text: string, word: string): boolean {
+  const w = normalizeText(word);
+  if (/[^\p{L}\p{N}]/u.test(w)) return text.includes(w);
+  return text.split(/[^\p{L}\p{N}]+/u).some((t) => {
+    if (t === w) return true;
+    if (!t.startsWith(w)) return false;
+    const rest = t.slice(w.length);
+    return PLURAL_SUFFIX.test(rest) || (w.length >= 4 && rest.length <= 3);
+  });
+}
+
 interface Pattern {
   file: string;
   segments: string[]; // "[id]" = one dynamic segment
@@ -186,7 +204,7 @@ export function suggestFiles(input: HintInput): FileHint[] {
 
   const text = normalizeText(input.text);
   for (const group of KEYWORD_FILES) {
-    if (group.words.some((w) => text.includes(normalizeText(w)))) {
+    if (group.words.some((w) => textHasWord(text, w))) {
       for (const file of group.files) add(file, `کلمه‌ی کلیدی: ${group.label}`);
     }
   }

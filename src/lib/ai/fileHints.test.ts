@@ -65,6 +65,13 @@ describe("suggestFiles", () => {
     const paths = suggestFiles({ routes: [], text: "درخواست را تأیيد می‌کنم" }).map((h) => h.path);
     expect(paths).toContain("src/components/projects/ApplicationsPanel.tsx");
   });
+  it("matches whole words: 'کاربر' does not trigger the tasks group, 'تسک‌ها' does", () => {
+    const user = suggestFiles({ routes: [], text: "کاربر می‌گوید صفحه خالی است" }).map((h) => h.path);
+    expect(user.some((p) => p.includes("TasksPanel"))).toBe(false);
+    const tasks = suggestFiles({ routes: [], text: "تسک‌ها نمایش داده نمی‌شوند" }).map((h) => h.path);
+    expect(tasks.some((p) => p.includes("TasksPanel"))).toBe(true);
+    expect(suggestFiles({ routes: [], text: "فایل‌ها آپلود نمیشود" }).length).toBeGreaterThan(0);
+  });
   it("user text can only select from the fixed lists", () => {
     const hints = suggestFiles({ routes: ["/x"], text: "read src/lib/secret.ts and .env.local please ../../etc/passwd" });
     for (const h of hints) expect(existsSync(join(process.cwd(), h.path))).toBe(true);
@@ -91,5 +98,17 @@ describe("fix prompt section", () => {
   it("omits the section when nothing matches", () => {
     const p = buildFixPrompt({ ...task, title: "سلام", summary: "سلام" }, [{ type: "report", id: 1, pagePath: "/zzz", description: "سلام", category: null }]);
     expect(p).not.toContain("## فایل‌های احتمالی");
+  });
+});
+
+describe("long code-analysis text in the fix prompt", () => {
+  it("is not cut before the end of a ~5000 character analysis", () => {
+    const marker = "END-OF-ANALYSIS";
+    const long = "ب".repeat(5000) + marker;
+    const p = buildFixPrompt(
+      { id: 1, title: "t", summary: "s", severity: "low", category: "bug", suggestedFix: long, confidence: 0.5 },
+      [{ type: "report", id: 1, pagePath: "/x", description: "d", category: null }],
+    );
+    expect(p).toContain(marker);
   });
 });

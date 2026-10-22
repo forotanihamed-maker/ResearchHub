@@ -43,7 +43,7 @@ export function maskForModel(input: unknown, maxLength = 2000): string {
   // let text hide from a human reviewer (or visually reorder). Newline, tab
   // and the Persian half-space (ZWNJ, U+200C) are kept.
   text = text.replace(INVISIBLE, "");
-  text = sanitizeSensitiveText(text);
+  text = sanitizeSensitiveText(text, Math.max(maxLength * 2, 2000));
   for (const [pattern, replacement] of EXTRA_PATTERNS) {
     text = text.replace(pattern, replacement);
   }

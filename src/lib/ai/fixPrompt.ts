@@ -98,7 +98,7 @@ export function buildFixPrompt(task: FixPromptTask, sources: DevTaskSource[]): s
     "خلاصه:",
     maskForModel(task.summary, 2000),
     "پیشنهاد رفع:",
-    task.suggestedFix ? maskForModel(task.suggestedFix, 4000) : "(پیشنهادی ثبت نشده)",
+    task.suggestedFix ? maskForModel(task.suggestedFix, 6000) : "(پیشنهادی ثبت نشده)",
     "</untrusted_analysis>",
     "",
     hintsBlock(task, sources),

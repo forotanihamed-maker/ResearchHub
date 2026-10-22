@@ -31,12 +31,12 @@ async function hash(value: string): Promise<string> {
     .join("");
 }
 
-export function sanitizeSensitiveText(value: unknown): string {
+export function sanitizeSensitiveText(value: unknown, maxLength: number = MAX_MESSAGE_LENGTH): string {
   let text = value instanceof Error ? value.message : String(value ?? "");
   for (const pattern of SENSITIVE_PATTERNS) {
     text = text.replace(pattern, "[REDACTED]");
   }
-  return text.slice(0, MAX_MESSAGE_LENGTH);
+  return text.slice(0, maxLength);
 }
 
 export function sanitizeRoute(value: unknown): string {
