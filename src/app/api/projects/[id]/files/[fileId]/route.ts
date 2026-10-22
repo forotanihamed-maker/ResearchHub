@@ -1,6 +1,6 @@
 /*src\app\api\projects\[id]\files\[fileId]\route.ts */
 import { NextRequest, NextResponse } from "next/server";
-import { del, get } from "@vercel/blob";
+import { deleteFile, openFile } from "@/lib/storage";
 import { db } from "@/db";
 import { projectFiles } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -53,9 +53,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const result = await get(file.fileUrl, { access: "private" });
+    const result = await openFile(file.fileUrl);
 
-    if (!result || result.statusCode !== 200) {
+    if (!result) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
@@ -64,9 +64,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return new NextResponse(result.stream, {
       status: 200,
       headers: {
-        "Content-Type": result.blob.contentType || "application/octet-stream",
+        "Content-Type": result.contentType,
         "Content-Disposition": `attachment; filename*=UTF-8''${encodedFileName}`,
-        "Content-Length": String(result.blob.size ?? file.fileSize),
+        "Content-Length": String(result.size ?? file.fileSize),
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, no-store",
       },
@@ -123,11 +123,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }
 
     try {
-      await del(file.fileUrl);
+      await deleteFile(file.fileUrl);
     } catch (blobError) {
       // Blob storage may already be missing the object (e.g. manual
       // cleanup); don't block removing the database record over it.
-      console.error("Project file blob delete error:", blobError);
+      console.error("Project file storage delete error:", blobError);
     }
 
     await db.delete(projectFiles).where(eq(projectFiles.id, parsedFileId));

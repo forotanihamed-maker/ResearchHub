@@ -1,6 +1,6 @@
 /*src\app\api\projects\[id]\messages\[messageId]\route.ts */
 import { NextRequest, NextResponse } from "next/server";
-import { del } from "@vercel/blob";
+import { deleteFile } from "@/lib/storage";
 import { db } from "@/db";
 import { chatMessages, projectFiles, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -179,7 +179,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     for (const file of attachedFiles) {
       try {
-        await del(file.fileUrl);
+        await deleteFile(file.fileUrl);
       } catch (blobError) {
         // Blob may already be missing the object; don't block the delete.
         console.error("Message attachment blob delete error:", blobError);

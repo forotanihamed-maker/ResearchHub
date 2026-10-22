@@ -1,7 +1,8 @@
 // src/app/api/projects/[id]/files/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { getStorageKind, saveFile } from "@/lib/storage";
+import { reportServerError } from "@/lib/errorCapture";
 import { db } from "@/db";
 import { projectFiles, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -224,9 +225,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    if (!getStorageKind()) {
       console.error(
-        "Project files POST error: BLOB_READ_WRITE_TOKEN is not configured"
+        "Project files POST error: file storage is not configured (S3_* or BLOB_READ_WRITE_TOKEN)"
       );
 
       return NextResponse.json(
@@ -265,14 +266,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // 7. upload to Blob
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    // Keep the END of the name (the extension) and cap the length: storage keys have a limit.
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100);
 
     const pathname = `projects/${projectId}/${context}/${Date.now()}-${safeName}`;
 
-    const blob = await put(pathname, file, {
-      access: "public",
-      addRandomSuffix: true,
-    });
+    // "projects/<id>/<context>/<timestamp>-<name>"; the Blob driver adds its own random suffix.
+    const storedRef = await saveFile(pathname, file);
 
     // 8. database insert
     const [saved] = await db
@@ -281,7 +281,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         projectId,
         uploaderId: authUser.userId,
         fileName: file.name,
-        fileUrl: blob.url,
+        fileUrl: storedRef,
         fileSize: file.size,
         context,
         chatMessageId,
@@ -312,6 +312,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
   } catch (error) {
     console.error("Project files POST error:", error);
+    // So the dev assistant / panel sees the real cause (message only, masked).
+    await reportServerError("/api/projects/[id]/files POST", error);
 
     return NextResponse.json(
       { error: "Internal server error" },
