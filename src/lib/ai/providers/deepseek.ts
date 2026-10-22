@@ -11,6 +11,9 @@
 // (a body could contain the prompt).
 import type {
   AiProvider,
+  ChatRequest,
+  ChatResult,
+  ChatToolCall,
   CompletionRequest,
   CompletionResult,
   ModelToolCall,
@@ -105,14 +108,42 @@ export class DeepSeekProvider implements AiProvider {
     };
     if (this.style === "deepseek") payload.thinking = { type: "disabled" };
     if (!this.omitTemperature) payload.temperature = 0;
-    const body = JSON.stringify(payload);
+    return this.send(JSON.stringify(payload), parseCompletion);
+  }
 
-    // One retry for network errors, 429 and 5xx. Never for other 4xx.
+  async chat(req: ChatRequest): Promise<ChatResult> {
+    const payload: Record<string, unknown> = {
+      model: req.model,
+      messages: req.messages.map((m) => {
+        if (m.role === "assistant") {
+          return {
+            role: "assistant",
+            content: m.content,
+            ...(m.toolCalls.length > 0
+              ? { tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.argumentsJson } })) }
+              : {}),
+          };
+        }
+        if (m.role === "tool") return { role: "tool", tool_call_id: m.toolCallId, content: m.content };
+        return { role: m.role, content: m.content };
+      }),
+      tools: req.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } })),
+      tool_choice: "auto",
+      [this.tokenParam]: req.maxOutputTokens,
+      stream: false,
+    };
+    if (this.style === "deepseek") payload.thinking = { type: "disabled" };
+    if (!this.omitTemperature) payload.temperature = 0;
+    return this.send(JSON.stringify(payload), parseChat);
+  }
+
+  /** One retry for network errors, 429 and 5xx. Never for other 4xx. */
+  private async send<T>(body: string, parse: (data: unknown) => T): Promise<T> {
     let lastError: AiProviderError | null = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       if (attempt > 0) await this.sleep(1000);
       try {
-        return await this.once(body);
+        return await this.once(body, parse);
       } catch (error) {
         if (!(error instanceof AiProviderError)) throw error;
         lastError = error;
@@ -122,7 +153,7 @@ export class DeepSeekProvider implements AiProvider {
     throw lastError ?? new AiProviderError("provider call failed", null, false);
   }
 
-  private async once(body: string): Promise<CompletionResult> {
+  private async once<T>(body: string, parse: (data: unknown) => T): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: Response;
@@ -154,7 +185,7 @@ export class DeepSeekProvider implements AiProvider {
     } catch {
       throw new AiProviderError("provider returned invalid JSON", response.status, false);
     }
-    return parseCompletion(data);
+    return parse(data);
   }
 }
 
@@ -187,6 +218,33 @@ export function parseCompletion(data: unknown): CompletionResult {
     toolCalls,
     finishReason: typeof first?.finish_reason === "string" ? first.finish_reason.slice(0, 40) : undefined,
     hadText: typeof message?.content === "string" && message.content.trim().length > 0,
+    inputTokens: asCount(usage.prompt_tokens),
+    outputTokens: asCount(usage.completion_tokens),
+  };
+}
+
+/** Extracts text, tool calls (with ids) and usage from a chat-completions response. */
+export function parseChat(data: unknown): ChatResult {
+  const root = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
+  const choices = Array.isArray(root.choices) ? root.choices : [];
+  const first = choices[0] as { message?: Record<string, unknown>; finish_reason?: unknown } | undefined;
+  const message = first?.message;
+  const rawCalls = Array.isArray(message?.tool_calls) ? (message?.tool_calls as unknown[]) : [];
+  const toolCalls: ChatToolCall[] = [];
+  rawCalls.slice(0, 8).forEach((call, i) => {
+    const c = call as { id?: unknown; function?: { name?: unknown; arguments?: unknown } };
+    if (typeof c?.function?.name !== "string") return;
+    toolCalls.push({
+      id: typeof c.id === "string" && c.id.length > 0 ? c.id.slice(0, 100) : `call_${i}`,
+      name: c.function.name,
+      argumentsJson: typeof c.function.arguments === "string" ? c.function.arguments : "",
+    });
+  });
+  const usage = (root.usage ?? {}) as Record<string, unknown>;
+  return {
+    content: typeof message?.content === "string" ? message.content : null,
+    toolCalls,
+    finishReason: typeof first?.finish_reason === "string" ? first.finish_reason.slice(0, 40) : undefined,
     inputTokens: asCount(usage.prompt_tokens),
     outputTokens: asCount(usage.completion_tokens),
   };

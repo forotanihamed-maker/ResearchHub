@@ -5,6 +5,8 @@
 // been sent to a real provider) and can be scripted to misbehave.
 import type {
   AiProvider,
+  ChatRequest,
+  ChatResult,
   CompletionRequest,
   CompletionResult,
 } from "@/lib/ai/provider";
@@ -19,6 +21,8 @@ function dataBlock(user: string): string {
 }
 
 export interface FakeOptions {
+  /** Scripted answers for chat(): called with the request and the chat call number (1-based). */
+  respondChat?: (req: ChatRequest, callNumber: number) => ChatResult | Promise<ChatResult>;
   /** Replace the answer entirely (e.g. to return invalid output). */
   respond?: (req: CompletionRequest, callNumber: number) => CompletionResult | Promise<CompletionResult>;
 }
@@ -27,8 +31,16 @@ export class FakeProvider implements AiProvider {
   readonly name = "fake";
   /** Every request seen, in order. */
   readonly calls: CompletionRequest[] = [];
+  /** Every chat() request seen, in order. */
+  readonly chatCalls: ChatRequest[] = [];
 
   constructor(private readonly options: FakeOptions = {}) {}
+
+  async chat(req: ChatRequest): Promise<ChatResult> {
+    this.chatCalls.push(req);
+    if (this.options.respondChat) return this.options.respondChat(req, this.chatCalls.length);
+    return { content: "no script", toolCalls: [], inputTokens: 0, outputTokens: 0 };
+  }
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     this.calls.push(req);

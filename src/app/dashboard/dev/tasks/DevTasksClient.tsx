@@ -89,6 +89,13 @@ async function patchJson<T>(url: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function postJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? String(res.status));
+  return data as T;
+}
+
 async function deleteJson(url: string): Promise<void> {
   const res = await fetch(url, { method: "DELETE" });
   if (!res.ok) throw new Error(String(res.status));
@@ -160,6 +167,14 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ["dev-tasks"] });
     },
   });
+  const analyze = useMutation({
+    mutationFn: () => postJson<{ steps: number; reads: number; costUsd: number; filesRead: string[] }>(`/api/dev/tasks/${id}/analyze-code`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dev-task", id] });
+      qc.invalidateQueries({ queryKey: ["dev-budget"] });
+      setPromptText(null);
+    },
+  });
   const remove = useMutation({
     mutationFn: () => deleteJson(`/api/dev/tasks/${id}`),
     onSuccess: () => {
@@ -209,6 +224,26 @@ function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
             <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{task.suggestedFix}</p>
           </>
         )}
+
+        <div className="mt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            loading={analyze.isPending}
+            onClick={() => {
+              if (window.confirm("تحلیل با کد انجام شود؟ بخش‌هایی از کد پروژه به سرویس هوش مصنوعی فرستاده می‌شود و هزینه دارد (معمولاً چند سنت).")) analyze.mutate();
+            }}
+          >
+            تحلیل با کد
+          </Button>
+          {analyze.isPending && <span className="mr-2 text-xs text-slate-500">ممکن است تا یک دقیقه طول بکشد…</span>}
+          {analyze.isSuccess && (
+            <p className="mt-2 text-xs text-green-700">
+              انجام شد: {analyze.data.reads} فایل خوانده شد، هزینه ${analyze.data.costUsd.toFixed(4)}. نتیجه در «پیشنهاد رفع» آمده است.
+            </p>
+          )}
+          {analyze.isError && <p className="mt-2 text-sm text-red-700">{analyze.error.message}</p>}
+        </div>
 
         <h3 className="mt-4 text-sm font-semibold text-slate-700">منبع</h3>
         {sources.length === 0 && <p className="text-sm text-slate-500">منبعی ثبت نشده.</p>}

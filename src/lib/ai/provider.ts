@@ -37,9 +37,38 @@ export interface CompletionResult {
   outputTokens: number;
 }
 
+export type ChatMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string | null; toolCalls: ChatToolCall[] }
+  | { role: "tool"; toolCallId: string; content: string };
+
+export interface ChatToolCall {
+  id: string;
+  name: string;
+  /** Raw JSON string exactly as the model produced it (untrusted). */
+  argumentsJson: string;
+}
+
+export interface ChatRequest {
+  model: string;
+  messages: ChatMessage[];
+  tools: ToolDef[];
+  maxOutputTokens: number;
+}
+
+export interface ChatResult {
+  content: string | null;
+  toolCalls: ChatToolCall[];
+  finishReason?: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface AiProvider {
   readonly name: string;
   complete(req: CompletionRequest): Promise<CompletionResult>;
+  /** Multi-turn call with several tools (used only by the code-analysis loop). */
+  chat(req: ChatRequest): Promise<ChatResult>;
 }
 
 /** Misconfiguration (missing key, bad URL). Never carries secret values. */

@@ -25,7 +25,7 @@ const SEVERITY_FA: Record<string, string> = {
   critical: "بحرانی", high: "زیاد", medium: "متوسط", low: "کم",
 };
 
-function sourceBlock(sources: DevTaskSource[]): string {
+export function sourceBlock(sources: DevTaskSource[]): string {
   if (sources.length === 0) return "(منبعی ثبت نشده)";
   return sources
     .map((s) => {
@@ -49,7 +49,7 @@ function sourceBlock(sources: DevTaskSource[]): string {
     .join("\n\n---\n\n");
 }
 
-function hintsBlock(task: FixPromptTask, sources: DevTaskSource[]): string {
+export function hintsBlock(task: FixPromptTask, sources: DevTaskSource[]): string {
   const routes = sources.map((s) => (s.type === "report" ? s.pagePath : s.route)).filter((r): r is string => !!r);
   const text = [
     task.title,
@@ -98,7 +98,7 @@ export function buildFixPrompt(task: FixPromptTask, sources: DevTaskSource[]): s
     "خلاصه:",
     maskForModel(task.summary, 2000),
     "پیشنهاد رفع:",
-    task.suggestedFix ? maskForModel(task.suggestedFix, 2000) : "(پیشنهادی ثبت نشده)",
+    task.suggestedFix ? maskForModel(task.suggestedFix, 4000) : "(پیشنهادی ثبت نشده)",
     "</untrusted_analysis>",
     "",
     hintsBlock(task, sources),

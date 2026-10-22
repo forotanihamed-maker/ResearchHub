@@ -15,6 +15,7 @@
   "src/app/api/dashboard/stats/route.ts",
   "src/app/api/dev/budget/route.ts",
   "src/app/api/dev/me/route.ts",
+  "src/app/api/dev/tasks/[id]/analyze-code/route.ts",
   "src/app/api/dev/tasks/[id]/prompt/route.ts",
   "src/app/api/dev/tasks/[id]/route.ts",
   "src/app/api/dev/tasks/route.ts",

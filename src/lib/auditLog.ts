@@ -39,6 +39,7 @@ export type AuditEvent =
   | "ai_triage_run"
   | "dev_task_status_changed"
   | "dev_task_deleted"
+  | "dev_task_code_analysis"
   | "ai_kill_switch_changed";
 
 interface AuditDetails {
