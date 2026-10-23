@@ -4,6 +4,12 @@ Stack: PostgreSQL + Drizzle ORM; current hosted DB: Neon.
 
 Main tables:
 `users`, `projects`, `applications`, `projectMembers`, `chatMessages`, `projectFiles`, `adminDepartments`, `directMessages`.
+Project execution: `tasks`, `project_milestones`, `project_activity`.
+AI assistant: `issue_reports`, `error_events`, `ai_tasks`, `ai_task_sources`, `ai_analysis_runs`, `ai_tool_calls`, `ai_pending_actions`, `ai_budget` (19 tables in `schema.ts` in total).
+
+`project_files.file_url` holds either a legacy Blob URL or an `s3:<key>` reference (see `docs/technical/STORAGE.md`).
+
+WARNING: the repo's migrations do NOT create `project_files` (a DB built only from `drizzle/` + `migrations/` has 18 tables). Never assume a fresh DB can be built from migrations alone; see `docs/technical/DATABASE.md`.
 
 Relationships:
 ```text

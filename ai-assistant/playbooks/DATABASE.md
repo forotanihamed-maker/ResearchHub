@@ -25,6 +25,10 @@ adminDepartments
 directMessages
 ```
 
+جداول اجرای پروژه: `tasks`، `project_milestones`، `project_activity`. جداول دستیار AI: `issue_reports`، `error_events`، `ai_tasks`، `ai_task_sources`، `ai_analysis_runs`، `ai_tool_calls`، `ai_pending_actions`، `ai_budget`. کل: ۱۹ جدول در `schema.ts`.
+
+هشدار: migrationهای مخزن `project_files` را نمی‌سازند؛ Neon مرجع واقعی است (`docs/technical/DATABASE.md`).
+
 مالکیت پروژه با `creatorId` و `creatorRole` است. `professorId` backward
 compatibility است. `department` یک PostgreSQL enum ثابت با ۶ مقدار است،
 نه جدول. Creator پروژه خودکار عضو `projectMembers` می‌شود.

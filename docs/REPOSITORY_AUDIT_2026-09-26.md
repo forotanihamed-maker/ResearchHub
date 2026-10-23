@@ -1,3 +1,5 @@
+> **سند تاریخی:** این فایل وضعیت زمان نوشتنش را نشان می‌دهد و بعداً به‌روز نشده است. وضعیت امروز: `docs/README.md`، `docs/product/02_CURRENT_STATE.md` و `docs/CHANGELOG.md`.
+
 # گزارش بررسی ایستای Repository — ResearchHub
 
 - تاریخ بررسی: 2026-09-26

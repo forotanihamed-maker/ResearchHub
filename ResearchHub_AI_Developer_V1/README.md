@@ -19,6 +19,9 @@
 - SECURITY_RULES.md
 - FEATURE_WORKFLOW.md
 
+## وضعیت (2026-10-23)
+این بسته با کد مخزن هم‌تراز شد (مسیرها، جدول‌ها، `proxy.ts`، دستیار AI و ذخیره‌ی فایل). برای جزئیات دستیار و فایل: `docs/technical/AI_ASSISTANT.md` و `docs/technical/STORAGE.md`. قبل از اجرای `npm test` بدانید تست‌های یکپارچه به Postgres محلی نیاز دارند.
+
 ## عمداً حذف شده
 Business Plan، Pitch Deck، Pilot Setup و Troubleshooting برای مدل Developer ضروری نیستند و بهتر است context آن را شلوغ نکنند.
 اسناد قدیمی مانند PROJECT_CONTEXT و TASK_RESPONSIBILITIES نیز به‌عنوان منبع اصلی استفاده نمی‌شوند؛ قواعد لازم آن‌ها در اسناد این بسته، در حد موردنیاز توسعه، ادغام شده است.

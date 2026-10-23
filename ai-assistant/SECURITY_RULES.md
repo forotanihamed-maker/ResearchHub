@@ -178,7 +178,7 @@ Approval:
 
 ## 9. Files
 
-Project files در Vercel Blob نگهداری می‌شوند.
+Project files در ذخیره‌ساز S3-سازگار یا Vercel Blob نگهداری می‌شوند (انتخاب با متغیرهای محیطی؛ `docs/technical/STORAGE.md`). آدرس ذخیره‌ساز هرگز به مرورگر داده نمی‌شود؛ دانلود از طریق برنامه است.
 
 در مشکلات فایل بررسی کن:
 

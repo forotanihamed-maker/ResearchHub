@@ -126,6 +126,20 @@ Database connectivity issue
 
 ---
 
+## 5b. علامت‌های فایل و دستیار AI
+
+| علامت | شواهد بخواهید | علت‌های محتمل |
+|---|---|---|
+| آپلود `Failed to fetch` / `ERR_CONNECTION_CLOSED` | Network: آیا POST اصلاً پاسخ HTTP گرفت؟ | درخواست به سرور نرسیده (مسیر شبکه، یا سقف بدنه‌ی پلتفرم حدود ۴٫۵MB روی Vercel) |
+| آپلود 500 `Internal server error` | خطای واقعی در پنل دستیار (تسک خطا) یا لاگ میزبان | ذخیره‌ساز (`File storage is not configured`، کلید S3، ناسازگاری Blob public/private) یا دیتابیس (نبود جدول `project_files`) |
+| دانلود 404/403 | عضویت کاربر در پروژه؛ مقدار `file_url` | نبود شیء در ذخیره‌ساز، یا کلید با الگوی `projects/<id>/<context>/<name>` نمی‌خواند |
+| تسک‌های AI ساخته نمی‌شوند | خروجی `/api/cron/triage` و لاگ Actions | `AI_ENABLED`، کلید یا آدرس مدل، `CRON_SECRET`، `APP_URL` بدون `https://` |
+| منوی پنل دستیار نیست | ایمیل کاربر | `DEV_ADMIN_EMAILS` |
+
+جدول کامل با اقدام‌ها: `docs/operations/AI_OPERATIONS.md` بخش ۳.
+
+---
+
 ## 6. HTTP decision tree
 
 ### 2xx

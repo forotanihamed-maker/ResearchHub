@@ -20,12 +20,14 @@
 pg_dump "NEON_DATABASE_URL" --no-owner --no-privileges -Fc -f backup.dump
 pg_restore --no-owner --no-privileges -d "LIARA_DATABASE_URL" backup.dump
 ```
+**هشدار مهم:** هیچ migration داخل مخزن جدول `project_files` را نمی‌سازد (بررسی شده: نه در `drizzle/` و نه در `migrations/`؛ روی Production وجود دارد). پس **دیتابیس خالی را فقط با اجرای migrationها نسازید**؛ آپلود فایل با «relation does not exist» می‌شکند. راه درست همین بازیابی از Neon است که همه‌ی جدول‌ها را می‌برد. اگر روزی دیتابیس خالی لازم شد، اول باید یک migration برای `project_files` ساخته شود (نیاز به تأیید شما دارد).
+
 بعد بررسی کنید جدول‌ها و تعداد کاربران یکی است:
 ```
 psql "LIARA_DATABASE_URL" -c "select count(*) from users"
 psql "NEON_DATABASE_URL"  -c "select count(*) from users"
 ```
-(این روش را روی Postgres محلی تمرین کرده‌ام: ۱۸ جدول و شمارش‌ها یکسان بود. روی Neon و لیارای واقعی اجرا نشده.)
+(این روش را روی Postgres محلی تمرین کرده‌ام و جدول‌ها و شمارش‌ها یکسان بود. روی Neon و لیارای واقعی اجرا نشده.)
 اگر خطای «version mismatch» دیدید، `pg_dump` شما قدیمی‌تر از سرور است.
 
 **فایل‌های قبلی در Vercel Blob:** ظاهراً آپلودی ثبت نشده؛ بررسی کنید:

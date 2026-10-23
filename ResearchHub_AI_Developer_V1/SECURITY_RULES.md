@@ -1,7 +1,7 @@
 # ResearchHub — Security Rules
 
 Never request, print, commit or hardcode:
-`DATABASE_URL`, `JWT_SECRET`, `BLOB_READ_WRITE_TOKEN`, `SEED_SECRET`, passwords, tokens, private keys.
+`DATABASE_URL`, `JWT_SECRET`, `BLOB_READ_WRITE_TOKEN`, `SEED_SECRET`, `CRON_SECRET`, `AI_API_KEY`, `GITHUB_READ_TOKEN`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, passwords, tokens, private keys.
 
 Authentication:
 - bcrypt password hashing

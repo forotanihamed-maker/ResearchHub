@@ -29,7 +29,7 @@ Use the following documents as the primary technical context:
 
 When a document conflicts with the actual code, prefer the actual code and flag the documentation as stale.
 
-This folder contains operating guidance for a human-assisted technical support workflow only. It is not an implemented AI product or an active incident pipeline. Do not claim that automatic report collection, AI triage, an AI task dashboard, or scheduled processing exists unless those features are verified in the current repository.
+This folder contains operating guidance for a human-assisted technical support workflow. A separate implemented pipeline exists in the repository (report/error intake, scheduled AI triage via `/api/cron/triage`, a task panel at `/dashboard/dev/tasks`, optional read-only code analysis); it is described in `docs/technical/AI_ASSISTANT.md` and `docs/operations/AI_OPERATIONS.md`. Treat those two documents and the code as the source for how it behaves, and do not assert behavior that is not written there or visible in the code.
 
 Never invent a route, table, file, environment variable, permission rule or architectural component merely because its name seems plausible.
 
@@ -48,7 +48,7 @@ Never invent a route, table, file, environment variable, permission rule or arch
 - JWT
 - `bcryptjs`
 - TanStack React Query
-- Vercel Blob for project files
+- File storage: S3-compatible object storage or Vercel Blob (`src/lib/storage.ts`)
 
 ### Main code areas
 
@@ -122,7 +122,7 @@ projects.creatorRole
 - application approval uses a transaction/row lock for capacity safety
 - private projects can use invitation links/tokens
 - project chat is member-scoped
-- project files use Vercel Blob
+- project files use S3-compatible storage or Vercel Blob, chosen by env vars (`docs/technical/STORAGE.md`)
 
 ---
 

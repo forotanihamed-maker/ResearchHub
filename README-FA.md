@@ -1,39 +1,32 @@
-# بسته ادغام مرحله ۰ و ۱ — ResearchHub
+# ResearchHub
 
-این بسته فایل‌های مرحله ۰ و ۱ را کنار هم قرار می‌دهد؛ اما **برای کپی مستقیم و بازنویسی یک‌جای پروژهٔ فعلی طراحی نشده است**. ابتدا از پروژهٔ محلی نسخهٔ پشتیبان بگیرید و سپس فایل‌ها را با نسخه‌های فعلی مقایسه/ادغام کنید.
+پلتفرم مدیریت و همکاری پروژه‌های دانشگاهی (دانشگاه علم و صنعت ایران) با سه نقش `student`، `professor` و `admin`، فضای اجرای پروژه (تسک، نقطه‌عطف، فعالیت)، گفتگو و فایل پروژه، و یک **دستیار هوش مصنوعی توسعه‌دهنده** که فقط برای مالک است. وضعیت: MVP / پایلوت.
 
-## فایل‌های این بسته
+**مبنای این سند:** کد مخزن در 2026-10-23. اگر سندی با کد اختلاف داشت، کد درست است و سند باید اصلاح شود.
 
-- `src/lib/auditLog.ts` — شامل هشت رویداد Audit جدید مرحله ۰.
-- `src/proxy.ts` — فایل Proxy مرحله ۰.
-- `eslint.config.mjs` — پیکربندی ESLint مرحله ۰.
-- `vitest.config.ts` و `src/lib/validation.test.ts` — تنظیمات و تست نمونهٔ Vitest مرحله ۰.
-- `.github/workflows/ci.yml` — گردش‌کار CI مرحله ۰.
-- `src/db/schema.ts` — نسخهٔ کامل schema ارائه‌شده در ZIP مرحله ۱ با هشت جدول جدید دستیار.
-- `migrations/20261017_ai_assistant_phase1_data_model.sql` — Migration مرحله ۱. **این فایل فقط تولید شده؛ آن را اجرا نکنید تا پس از بازبینی و تأیید صریح.**
-- `package.json.step0-reference.json` — فقط مرجع package.json مرحله ۰ است؛ آن را به نام `package.json` تغییر ندهید و روی پروژه جایگزین نکنید.
+## فناوری
+Next.js 16 (App Router، `src/proxy.ts`)، React 19، TypeScript strict، Drizzle ORM، PostgreSQL (Neon در Production)، Vitest، ESLint، Tailwind 4، TanStack React Query، JWT در کوکی httpOnly با `bcryptjs`. فایل‌ها: S3-سازگار یا Vercel Blob. میزبان فعلی: Vercel.
 
-## پیش از استفاده
-
-1. از پوشهٔ پروژهٔ فعلی و به‌ویژه `src/db/schema.ts`، `src/lib/auditLog.ts`، `src/middleware.ts` یا `src/proxy.ts`، `package.json` و فایل‌های تنظیمات نسخهٔ پشتیبان تهیه کنید.
-2. فایل‌ها را با پروژهٔ فعلی مقایسه کنید. در صورت وجود تغییرات محلی جدیدتر، کل فایل را جایگزین نکنید؛ فقط تغییرات لازم را ادغام کنید.
-3. اسکریپت `test` و وابستگی Vitest را از مرجع `package.json.step0-reference.json` با `package.json` فعلی ادغام کنید؛ `package.json` و `package-lock.json` فعلی را کورکورانه جایگزین نکنید.
-4. فایل `drizzle.config.json` را حذف یا تغییر ندهید. این بسته خطای `AWS Data API` را اصلاح نمی‌کند و علت آن هنوز مشخص نشده است.
-5. هیچ Migration، `drizzle-kit push` یا فرمان تغییردهندهٔ دیتابیس را اجرا نکنید.
-
-## آزمون پس از ادغام
-
-در CMD از ریشهٔ پروژه اجرا کنید، یکی‌یکی:
-
-```cmd
-npm run typecheck
-npm run lint -- --quiet
-npm test
-npm run build
+## اجرای محلی
 ```
+npm install
+cp .env.example .env.local      # DATABASE_URL و JWT_SECRET را پر کنید
+npm run dev
+```
+اسکریپت‌ها: `dev`، `build`، `start`، `lint`، `typecheck`، `test` (= `vitest run`). تست‌های یکپارچه به یک Postgres محلی نیاز دارند (`TEST_DATABASE_URL`)؛ بدون آن نمی‌توانند اجرا شوند. قبل از تحویل هر تغییر: `npm run typecheck && npm run lint && npm test && npm run build`.
 
-اگر هر فرمان خطا داد، قبل از ادامه خروجی کامل را بررسی کنید. موفقیت آزمون‌های محلی به‌تنهایی تأیید امنیت یا صحت دیتابیس Production نیست.
+## متغیرهای محیطی (فهرست کامل با توضیح در `.env.example`)
+- هسته: `DATABASE_URL`، `JWT_SECRET`، `JWT_EXPIRES_IN`، `SEED_SECRET` (اختیاری)، `LOGIN_MAX_FAILED_ATTEMPTS_PER_IP` (اختیاری).
+- دستیار AI: `AI_*`، `CRON_SECRET`، `DEV_ADMIN_EMAILS`، `GITHUB_*` ← `docs/operations/AI_OPERATIONS.md`.
+- فایل: `S3_*` یا `BLOB_READ_WRITE_TOKEN` ← `docs/technical/STORAGE.md`.
 
-## محدودیت مهم
+## دستیار AI (خلاصه)
+گزارش کاربران و خطاهای سرور/مرورگر ← هر ۳۰ دقیقه GitHub Actions ← مدل (پس از ماسک داده‌ی حساس) ← تسک اولویت‌بندی‌شده در `/dashboard/dev/tasks` (فقط ایمیل‌های `DEV_ADMIN_EMAILS`؛ بقیه 404). پنل پرامپت رفع برای Claude می‌سازد و «تحلیل با کد» کد را از GitHub (فقط‌خواندنی) می‌خواند. جزئیات: `docs/technical/AI_ASSISTANT.md`.
 
-این ZIP ادغام ساختاری فایل‌های ارائه‌شده در دو بسته است، نه یک بازبینی کامل در برابر آخرین نسخهٔ محلی پروژه. چون محتوای کامل پوشهٔ محلی و وضعیت Git در این مرحله در دسترس نیست، جایگزینی مستقیم `src/db/schema.ts` می‌تواند تغییرات محلی را از بین ببرد. ابتدا مقایسه و پشتیبان‌گیری الزامی است.
+## مستندات
+نقطه‌ی شروع: `docs/README.md` و `docs/DOCUMENTATION_MAP.md`. تاریخچه‌ی تغییرها: `docs/CHANGELOG.md`. انتقال به سرور ایرانی (در انتظار بودجه): `docs/MIGRATION-LIARA.md`.
+
+## هشدارها
+- **دیتابیس خالی را فقط با migrationهای مخزن نسازید:** جدول `project_files` در هیچ migration نیست (بخش Database در `docs/technical/DATABASE.md`).
+- هر دو فایل `migrations/20261017_ai_assistant_phase1_data_model.sql` و `20261017_ai_service_assistant_phase1.sql` در مخزن هستند؛ هر دو همان ۸ جدول دستیار را تعریف می‌کنند ولی متنشان یکسان نیست (۱۱۳ و ۱۲۹ خط). قبل از اجرای هرکدام یا حذف یکی، با هم مقایسه کنید.
+- هیچ migration یا `drizzle-kit push` را بدون بازبینی و تأیید روی Production اجرا نکنید.
